@@ -1,0 +1,13 @@
+name = "p2p-help"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["* * * * *"]
+
+# 环境变量通过 wrangler secret 设置:
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_ANON_KEY
+# wrangler secret put JWT_SECRET
+# wrangler secret put ADMIN_PASSWORD
