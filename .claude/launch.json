@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "前端 Vite Dev",
+      "command": "npm run dev",
+      "cwd": ".",
+      "port": 5174,
+      "readyPattern": "Local"
+    }
+  ]
+}
