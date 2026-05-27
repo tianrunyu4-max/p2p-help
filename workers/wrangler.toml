@@ -3,6 +3,11 @@ main = "src/index.js"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# 前端静态资源（npm run build 输出到 ../dist）
+[assets]
+directory = "../dist"
+binding = "ASSETS"
+
 [triggers]
 crons = ["* * * * *"]
 
