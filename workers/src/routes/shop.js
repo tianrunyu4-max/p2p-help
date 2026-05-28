@@ -31,5 +31,47 @@ export async function handleShop(request, env, pathname) {
     })
   }
 
+  // GET /api/shop/team-stats — 团队数据
+  if (pathname === '/api/shop/team-stats' && request.method === 'GET') {
+    const me = await getUser(db, payload.userId)
+    if (!me) return err('用户不存在')
+
+    // 直推人数
+    const { count: directCount } = await db.from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('referrer_id', payload.userId)
+
+    // 团队总人数（最多6层递归）
+    let totalCount = 0
+    let currentLayer = [payload.userId]
+    for (let i = 0; i < 6 && currentLayer.length > 0; i++) {
+      const { data: nextLayer } = await db.from('users')
+        .select('id')
+        .in('referrer_id', currentLayer)
+      if (!nextLayer?.length) break
+      totalCount += nextLayer.length
+      currentLayer = nextLayer.map(u => u.id)
+    }
+
+    // 累计收款
+    const totalReceived = parseFloat(me.total_received) || 0
+
+    // 近期收款记录（已确认）
+    const { data: recentTasks } = await db.from('payment_tasks')
+      .select('amount, type_label, confirmed_at')
+      .eq('receiver_id', payload.userId)
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(20)
+
+    return ok({
+      directCount: directCount || 0,
+      totalCount,
+      totalReceived,
+      recentTasks: recentTasks || [],
+      repurchaseNeed: totalReceived >= 1500,
+    })
+  }
+
   return null
 }
