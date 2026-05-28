@@ -5,7 +5,6 @@
 
 import { getDB, getUser } from '../db.js'
 import { ok, err } from '../utils/response.js'
-import { updateOrderProgress } from './orders_helper.js'
 
 async function isAdmin(request, env) {
   const token = request.headers.get('X-Admin-Token') || ''
