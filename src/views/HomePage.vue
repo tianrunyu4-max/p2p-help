@@ -7,19 +7,19 @@ import axios from 'axios'
 const router = useRouter()
 const store  = useUserStore()
 
-const phone      = ref('')
+const email      = ref('')
 const inviteCode = ref('')
 const loading    = ref(false)
 const error      = ref('')
 
 // 自动生成6位ID（注册后返回）
 async function handleRegister() {
-  if (!phone.value) { error.value = '请输入手机号'; return }
+  if (!email.value) { error.value = '请输入邮箱'; return }
   loading.value = true
   error.value = ''
   try {
     const res = await axios.post('/api/auth/register', {
-      phone: phone.value,
+      email: email.value,
       inviteCode: inviteCode.value
     })
     store.setToken(res.data.data.token)
@@ -73,7 +73,7 @@ async function handleRegister() {
         <p class="logo-sub">点对点 · 直接打款 · 全程透明</p>
 
         <div class="form-card">
-          <input v-model="phone" type="tel" placeholder="手机号" class="input" />
+          <input v-model="email" type="email" placeholder="邮箱" class="input" />
           <input v-model="inviteCode" type="text" placeholder="邀请码（必填）" class="input" />
           <p v-if="error" class="err-msg">{{ error }}</p>
           <button class="btn-main" :disabled="loading" @click="handleRegister">

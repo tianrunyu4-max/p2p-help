@@ -79,7 +79,7 @@ export async function handleAdmin(request, env, pathname) {
     const page = parseInt(url.searchParams.get('page') || '1')
 
     let query = db.from('users')
-      .select('id, user_no, phone, invite_code, invite_used, is_active, is_frozen, is_exited, role, total_received, created_at')
+      .select('id, user_no, email, invite_code, invite_used, is_active, is_frozen, is_exited, role, total_received, created_at')
       .order('created_at', { ascending: false })
       .range((page - 1) * 50, page * 50 - 1)
 

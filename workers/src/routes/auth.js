@@ -6,8 +6,8 @@ export async function handleAuth(request, env, pathname) {
 
   // POST /api/auth/register
   if (pathname === '/api/auth/register' && request.method === 'POST') {
-    const { phone, inviteCode } = await request.json()
-    if (!phone) return err('请输入手机号')
+    const { email, inviteCode } = await request.json()
+    if (!email) return err('请输入邮箱')
     if (!inviteCode) return err('请输入邀请码')
 
     const db = getDB(env)
@@ -23,10 +23,10 @@ export async function handleAuth(request, env, pathname) {
     if ((referrer.invite_used || 0) >= 2) return err('该邀请码已使用2次，无法继续邀请')
     if (!referrer.is_active) return err('邀请人尚未激活')
 
-    // 检查手机号是否已注册
+    // 检查邮箱是否已注册
     const { data: existing } = await db.from('users')
-      .select('id').eq('phone', phone).maybeSingle()
-    if (existing) return err('该手机号已注册')
+      .select('id').eq('email', email.toLowerCase()).maybeSingle()
+    if (existing) return err('该邮箱已注册')
 
     // 生成ID和邀请码
     const userNo     = await generateUserId(db)
@@ -34,7 +34,7 @@ export async function handleAuth(request, env, pathname) {
 
     const { data: newUser, error } = await db.from('users').insert({
       user_no: userNo,
-      phone,
+      email: email.toLowerCase(),
       invite_code: myInvCode,
       referrer_id: referrer.id,
       invite_used: 0,
@@ -54,12 +54,12 @@ export async function handleAuth(request, env, pathname) {
 
   // POST /api/auth/login
   if (pathname === '/api/auth/login' && request.method === 'POST') {
-    const { phone, code } = await request.json()
-    if (!phone) return err('请输入手机号')
+    const { email } = await request.json()
+    if (!email) return err('请输入邮箱')
 
     const db = getDB(env)
     const { data: user } = await db.from('users')
-      .select('*').eq('phone', phone).maybeSingle()
+      .select('*').eq('email', email.toLowerCase()).maybeSingle()
 
     if (!user) return err('用户不存在')
     if (user.is_frozen) return err('账户已被冻结，请联系客服')
