@@ -9,10 +9,11 @@ const store  = useUserStore()
 
 // 底部导航
 const navItems = [
-  { path: '/',        icon: '🏠', label: '首页' },
-  { path: '/myshop',  icon: '🏪', label: '店铺' },
-  { path: '/confirm', icon: '✅', label: '待确认' },
-  { path: '/profile', icon: '👤', label: '我的' },
+  { path: '/',          icon: '🏠', label: '首页' },
+  { path: '/myshop',   icon: '🏪', label: '店铺' },
+  { path: '/community',icon: '💬', label: '社区' },
+  { path: '/confirm',  icon: '✅', label: '待确认' },
+  { path: '/profile',  icon: '👤', label: '我的' },
 ]
 const showNav = computed(() => store.isLoggedIn && !route.path.startsWith('/admin'))
 </script>

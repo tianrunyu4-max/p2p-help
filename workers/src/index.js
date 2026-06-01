@@ -1,10 +1,11 @@
-import { handleAuth }                   from './routes/auth.js'
-import { handleActivate }               from './routes/activate.js'
-import { handleOrders, checkTimeouts }  from './routes/orders.js'
-import { handleShop }                   from './routes/shop.js'
-import { handleUser }                   from './routes/user.js'
-import { handleAdmin }                  from './routes/admin.js'
-import { cors }                         from './utils/response.js'
+import { handleAuth }                              from './routes/auth.js'
+import { handleActivate }                          from './routes/activate.js'
+import { handleOrders, checkTimeouts }             from './routes/orders.js'
+import { handleShop }                              from './routes/shop.js'
+import { handleUser }                              from './routes/user.js'
+import { handleAdmin }                             from './routes/admin.js'
+import { handleCommunity, handleUpload, handleAI } from './routes/community.js'
+import { cors }                                    from './utils/response.js'
 
 export default {
 
@@ -25,6 +26,9 @@ export default {
         handleShop,
         handleUser,
         handleAdmin,
+        handleCommunity,
+        handleUpload,
+        handleAI,
       ]
 
       for (const handler of handlers) {
