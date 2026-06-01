@@ -81,13 +81,40 @@
 - `workers/src/routes/orders.js` - 订单管理
 - `workers/src/routes/admin.js` - 管理后台接口
 
-## 数据库表（Supabase 新项目）
+## ✅ 已完成的重要配置（不要重复做）
+
+### Supabase 数据库
+- **独立项目**：p2p帮助 组织，项目ID `nygskhqxjddkqlckafjw`
+- **与 task-wall 完全隔离**（task-wall 用 `gjyttvqdxuwhzheriivo`）
+- **表已建好**：users / shops / activation_orders / payment_tasks
+- **users 表用 email 字段**（不是 phone），已有初始管理员节点数据
+
+### 注册/登录（已改）
+- 手机号 → **邮箱（email）**，前后端都已修改
+- 后端：`workers/src/routes/auth.js` 用 email 字段
+- 前端：`src/views/HomePage.vue` 输入框改为 email
+
+### 管理后台（已改）
+- `src/views/AdminPanel.vue`：加了密码验证弹窗
+- 普通会员访问 `/#/admin` 只看到"🔐 管理后台·仅限管理员访问"
+- 输入 Cloudflare 环境变量 `ADMIN_PASSWORD` 才能进入
+- 密码存 sessionStorage，关闭标签页后需重新验证
+
+### Cloudflare Workers 环境变量（已配置）
+- `SUPABASE_URL` = p2p-help 独立项目地址
+- `SUPABASE_ANON_KEY` = p2p-help anon key
+- `JWT_SECRET` = 已设置
+- `ADMIN_PASSWORD` = 管理员后台密码
+
+### 线上验证（已通过）
+- `curl https://p2p.ai-airdrop.uk/api/auth/login` 返回正常（Supabase 已连接）
+
+## 数据库表结构
 ```sql
-users           -- 用户、邀请关系、冻结状态
+users           -- 用户、邀请关系（email字段，非phone）
 shops           -- 店铺（slot1店主 + slotA店长）
-payment_tasks   -- 18笔P2P支付任务
-activation_orders -- 激活订单（汇总18笔状态）
-qr_codes        -- 用户收款码（微信/支付宝）
+payment_tasks   -- P2P支付任务
+activation_orders -- 激活订单
 ```
 
 ## 订单状态机
