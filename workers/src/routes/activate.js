@@ -1,10 +1,10 @@
 /**
  * activate.js — 激活匹配核心算法
  *
- * 激活金 350元，全部 P2P 点对点，动态匹配 16-18 人：
- *   见点    100  → 店主（永久）
- *   帮扶    50×2 → 店主直推的2人（已出局才收，否则归店主）
- *   平级    10×15→ 邀请链往上15层（有直推解锁15层，无直推只收10层，超出紧缩）
+ * 激活金 230元，全部 P2P 点对点：
+ *   见点    70   → 老板（永久）
+ *   帮扶    30×2 → 老板的直推中已出局者；未出局→给管理员节点
+ *   平级    10×10→ 邀请链往上10层
  */
 
 import { getDB, getUser, getShop } from '../db.js'
@@ -12,12 +12,11 @@ import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
 // ── 常量 ─────────────────────────────────────────────────────
-const ACTIVATE_AMOUNT  = 350
-const JIAN_DIAN        = 100   // 见点
-const BANG_FU          = 50    // 帮扶（每人）
+const ACTIVATE_AMOUNT  = 230
+const JIAN_DIAN        = 70    // 见点
+const BANG_FU          = 30    // 帮扶（每人）
 const PING_JI          = 10    // 平级（每层）
-const MAX_LEVEL        = 15    // 最大平级层数
-const BASE_LEVEL       = 10    // 无直推时拿几层
+const MAX_LEVEL        = 10    // 最大平级层数
 const REPURCHASE_LIMIT = 1500  // 累计收款达到此金额需复投
 
 // ── 路由入口 ─────────────────────────────────────────────────
@@ -113,7 +112,7 @@ async function buildPaymentTasks(db, newUserId, referrer) {
   // ② 见点 100 → 店主（基础金额，帮扶未出局部分会累加进来）
   let shopOwnerExtra = 0
 
-  // ③ 帮扶：找店主的最多2个直推（referrer_id = shopOwnerId）
+  // ③ 帮扶：找老板的最多2个直推
   const { data: directPushes } = await db.from('users')
     .select('id, user_no, is_exited')
     .eq('referrer_id', shopOwnerId)
@@ -122,30 +121,43 @@ async function buildPaymentTasks(db, newUserId, referrer) {
 
   const pushList = directPushes || []
 
+  // 获取管理员节点（帮扶未出局时收款方）
+  const { data: adminNode } = await db.from('users')
+    .select('id, user_no')
+    .eq('is_node', true)
+    .order('node_order', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
   for (let i = 0; i < 2; i++) {
     const push = pushList[i]
     if (push && push.is_exited) {
-      // 已出局 → 独立收取帮扶50
+      // 已出局 → 帮扶30给该直推（老板）
       tasks.push({
         receiver_id: push.id,
         amount:      BANG_FU,
         type:        'bang_fu',
-        type_label:  '帮扶奖',
+        type_label:  `帮扶奖（直推${i + 1}号老板）`,
       })
     } else {
-      // 未出局或不存在 → 帮扶归店主
-      shopOwnerExtra += BANG_FU
+      // 未出局或不存在 → 帮扶30给管理员节点暂存
+      if (adminNode) {
+        tasks.push({
+          receiver_id: adminNode.id,
+          amount:      BANG_FU,
+          type:        'bang_fu_admin',
+          type_label:  `帮扶预留（管理员代收，直推${i + 1}号未出局）`,
+        })
+      }
     }
   }
 
-  // 见点 + 额外帮扶（未出局部分）合并成一笔
+  // 见点 70 → 老板
   tasks.push({
     receiver_id: shopOwnerId,
-    amount:      JIAN_DIAN + shopOwnerExtra,
+    amount:      JIAN_DIAN,
     type:        'jian_dian',
-    type_label:  shopOwnerExtra > 0
-      ? `见点奖+帮扶奖共¥${JIAN_DIAN + shopOwnerExtra}`
-      : '见点奖',
+    type_label:  '见点奖',
   })
 
   // ④ 平级奖：沿邀请链往上15层
@@ -185,14 +197,14 @@ async function resolveShop(db, referrer) {
   return { shopOwnerId: null, shop: null }
 }
 
-// ── 平级奖构建（15层，带紧缩逻辑）────────────────────────────
+// ── 平级奖构建（10层，无紧缩）────────────────────────────────
 async function buildLevelBonuses(db, startUserId) {
   const tasks = []
   let currentId = startUserId
   const visited = new Set()
   const chainUsers = []
 
-  // 收集链条上的用户（最多15个）
+  // 收集链条上的用户（最多10层）
   while (chainUsers.length < MAX_LEVEL && currentId) {
     if (visited.has(currentId)) break
     visited.add(currentId)
@@ -202,7 +214,7 @@ async function buildLevelBonuses(db, startUserId) {
     currentId = u.referrer_id
   }
 
-  // 链条不足15层 → 用管理员预设节点补足
+  // 链条不足10层 → 用节点用户补足
   if (chainUsers.length < MAX_LEVEL) {
     const { data: nodes } = await db.from('users')
       .select('*')
@@ -217,40 +229,24 @@ async function buildLevelBonuses(db, startUserId) {
     }
   }
 
-  // 分配10元/层，带"紧缩"逻辑
-  let pending = 0  // 积累待转给下一个有资格的人
-
+  // 每层固定10元，无紧缩逻辑
   for (let i = 0; i < chainUsers.length; i++) {
-    const u = i < chainUsers.length ? chainUsers[i] : null
+    const u = chainUsers[i]
     const level = i + 1
-    const hasInvite = (u?.invite_used || 0) >= 1
-    const qualified = level <= BASE_LEVEL || hasInvite  // 前10层无条件，11-15层需有直推
-
-    if (qualified && u) {
-      const amount = PING_JI + pending
-      pending = 0
-      // 同一人可能多层，合并
-      const exist = tasks.find(t => t.receiver_id === u.id && t.type.startsWith('ping_ji'))
-      if (exist) {
-        exist.amount += amount
-        exist.type_label = `平级第${exist.level}-${level}层`
-      } else {
-        tasks.push({
-          receiver_id: u.id,
-          amount,
-          type:       `ping_ji_${level}`,
-          type_label: `平级第${level}层`,
-          level,
-        })
-      }
+    const exist = tasks.find(t => t.receiver_id === u.id && t.type.startsWith('ping_ji'))
+    if (exist) {
+      exist.amount += PING_JI
+      exist.type_label = `平级第${exist.level}-${level}层`
     } else {
-      // 不合格（level>10且无直推）→ 积累，等下一个有资格的人接收（紧缩）
-      pending += PING_JI
+      tasks.push({
+        receiver_id: u.id,
+        amount:      PING_JI,
+        type:        `ping_ji_${level}`,
+        type_label:  `平级第${level}层`,
+        level,
+      })
     }
   }
-
-  // 剩余pending（整条链都没有合格的第11-15层）→ 归上层有直推的人
-  // 已经在循环中处理；若仍有剩余，忽略（小概率边缘情况）
 
   return tasks
 }
