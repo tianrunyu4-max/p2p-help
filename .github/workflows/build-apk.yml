@@ -28,8 +28,10 @@ jobs:
       - name: 构建前端
         run: npm run build
 
-      - name: 同步到 Android
-        run: npx cap sync android
+      - name: 添加并同步 Android 平台
+        run: |
+          npx cap add android
+          npx cap sync android
 
       - uses: actions/setup-java@v4
         with:
