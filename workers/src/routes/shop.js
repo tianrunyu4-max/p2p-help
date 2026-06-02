@@ -3,6 +3,7 @@ import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
 export async function handleShop(request, env, pathname) {
+  if (!pathname.startsWith('/api/shop') && !pathname.startsWith('/api/qr')) return null
   const payload = await authMiddleware(request, env)
   if (!payload) return err('未登录', 401)
 

@@ -22,6 +22,7 @@ const REPURCHASE_LIMIT = 1500  // 累计收款达到此金额需复投
 
 // ── 路由入口 ─────────────────────────────────────────────────
 export async function handleActivate(request, env, pathname) {
+  if (!pathname.startsWith('/api/activate') && !pathname.startsWith('/api/repurchase')) return null
   const payload = await authMiddleware(request, env)
   if (!payload) return err('未登录', 401)
 
