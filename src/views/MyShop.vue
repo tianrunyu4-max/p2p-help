@@ -135,7 +135,7 @@ function fmtTime(ts) {
         <div class="income-breakdown">
           <div class="breakdown-item">
             <div class="bk-icon" style="background:#fffbea">👑</div>
-            <div class="bk-info"><div class="bk-name">见点奖</div><div class="bk-hint">100元/次</div></div>
+            <div class="bk-info"><div class="bk-name">见点奖</div><div class="bk-hint">70元/次</div></div>
             <div class="bk-amount">+{{ fmt(totalJianDian) }}元</div>
           </div>
           <div class="breakdown-item">
@@ -165,8 +165,8 @@ function fmtTime(ts) {
           <div class="identity-header">
             <span class="identity-icon">{{ isOwner ? '👑' : '👔' }}</span>
             <div class="identity-info">
-              <div class="identity-title">{{ isOwner ? '店主身份' : isManager ? '店长身份' : '未激活' }}</div>
-              <div class="identity-subtitle">{{ isOwner ? '永久拿见点奖，不出局' : isManager ? '推满1人后出局开店，成为新店主' : '完成激活后进入店铺' }}</div>
+              <div class="identity-title">{{ isOwner ? '老板身份' : isManager ? '代理身份' : '未激活' }}</div>
+              <div class="identity-subtitle">{{ isOwner ? '永久拿见点奖，不出局' : isManager ? '推满1人后出局开店，成为新老板' : '完成激活后进入店铺' }}</div>
             </div>
             <span class="identity-badge" :class="isOwner ? 'landlord' : isManager ? 'pending' : 'none'">
               {{ isOwner ? '独立店铺' : isManager ? '等待出局' : '未激活' }}
@@ -182,12 +182,12 @@ function fmtTime(ts) {
               <div class="contribution-fill" :style="{ width: (teamStats.directCount >= 1 ? 100 : 0) + '%' }"></div>
             </div>
             <div class="contribution-hint" :class="{ warning: teamStats.directCount < 1 }">
-              {{ teamStats.directCount >= 1 ? '✅ 已达出局条件' : '⚠️ 推荐1人后出局开店成为店主' }}
+              {{ teamStats.directCount >= 1 ? '✅ 已达出局条件' : '⚠️ 推荐1人后出局开店成为老板' }}
             </div>
           </div>
           <div class="contribution-done" v-if="isOwner">
             <span class="done-icon">✅</span>
-            <span class="done-text">已出局开店，成为店主，永久拿见点奖</span>
+            <span class="done-text">已出局开店，成为老板，永久拿见点奖</span>
           </div>
         </div>
 
@@ -196,16 +196,16 @@ function fmtTime(ts) {
           <div class="model-header">
             <span class="model-title">🏪 1+1 店铺模型</span>
             <span class="model-badge" :class="isOwner ? 'landlord' : 'pending'">
-              {{ isOwner ? '我的店铺' : '在职店长' }}
+              {{ isOwner ? '我的店铺' : '在职代理' }}
             </span>
           </div>
 
           <div class="model-diagram">
-            <!-- 店主位 -->
+            <!-- 老板位 -->
             <div class="position-box position-a">
               <div class="position-glow"></div>
               <div class="position-content">
-                <div class="position-label">👑 店主</div>
+                <div class="position-label">👑 老板</div>
                 <div class="position-avatar"><span class="avatar-icon">👑</span></div>
                 <div class="position-user">{{ shop?.owner_no || (isOwner ? me.user_no : '等待开店') }}</div>
                 <div class="position-invite" v-if="shop?.owner_invite_code || (isOwner && me.invite_code)">
@@ -224,10 +224,10 @@ function fmtTime(ts) {
               <div class="line-arrow">↓</div>
             </div>
 
-            <!-- 店长位 -->
+            <!-- 代理位 -->
             <div class="position-box position-b" :class="{ 'has-user': shop?.tenant_no }">
               <div class="position-content">
-                <div class="position-label">👔 店长</div>
+                <div class="position-label">👔 代理</div>
                 <div class="position-avatar"><span class="avatar-icon">{{ shop?.tenant_no ? '👔' : '⏳' }}</span></div>
                 <div class="position-user">{{ shop?.tenant_no || '空缺中...' }}</div>
                 <div class="position-invite" v-if="shop?.tenant_invite_code || (!isOwner && me.invite_code)">
@@ -236,7 +236,7 @@ function fmtTime(ts) {
                     {{ copiedCode === (shop?.tenant_invite_code || me.invite_code) ? '✅' : '复制' }}
                   </button>
                 </div>
-                <div class="position-desc">{{ shop?.tenant_no ? '推满1人出局开店' : '等待店长加入' }}</div>
+                <div class="position-desc">{{ shop?.tenant_no ? '推满1人出局开店' : '等待代理加入' }}</div>
               </div>
             </div>
 
@@ -252,9 +252,9 @@ function fmtTime(ts) {
 
           <!-- 模型说明 -->
           <div class="model-tips">
-            <div class="tip-item">💡 一个店 = 店主 + 店长（2人）</div>
-            <div class="tip-item">👑 店主永久拿见点奖（激活金额×20%）</div>
-            <div class="tip-item">👔 店长推满1人后出局开店，成为新店主</div>
+            <div class="tip-item">💡 一个店 = 老板 + 代理（2人）</div>
+            <div class="tip-item">👑 老板永久拿见点奖（激活金额×20%）</div>
+            <div class="tip-item">👔 代理推满1人后出局开店，成为新老板</div>
           </div>
         </div>
       </template>
@@ -298,7 +298,7 @@ function fmtTime(ts) {
       <div class="subsidy-card" v-if="activeNav === 'bangfu'">
         <div class="subsidy-header">
           <span class="subsidy-title">🫱 帮扶奖说明</span>
-          <span class="subsidy-badge">50元 × 2人</span>
+          <span class="subsidy-badge">30元 × 2人</span>
         </div>
         <div class="subsidy-balance">
           <div class="balance-box">
@@ -311,7 +311,7 @@ function fmtTime(ts) {
             <div class="balance-label">帮扶次数</div>
             <div class="balance-amount">{{ bangFuTasks.length }}</div>
             <div class="balance-percent">次</div>
-            <div class="balance-hint">每次50元</div>
+            <div class="balance-hint">每次30元</div>
           </div>
         </div>
         <div class="subsidy-features">
@@ -320,7 +320,7 @@ function fmtTime(ts) {
             <span class="feature-icon">🫱</span>
             <div class="feature-content">
               <div class="feature-name">帮扶奖 (50元×2)</div>
-              <div class="feature-desc">新人激活时，向店主邀请的已出局2位直推各付 50 元帮扶奖</div>
+              <div class="feature-desc">新人激活时，向老板邀请的已出局2位直推各付 30 元帮扶奖</div>
             </div>
           </div>
           <div class="feature-item">
@@ -340,7 +340,7 @@ function fmtTime(ts) {
         </div>
         <div class="subsidy-rules">
           <div class="rule-item">✅ 帮扶奖：每人激活 → 向你的2位出局直推各付50元</div>
-          <div class="rule-item">✅ 如直推未出局，帮扶奖归店主收取</div>
+          <div class="rule-item">✅ 如直推未出局，帮扶奖归老板收取</div>
           <div class="rule-item">✅ 全程点对点，资金不经平台</div>
         </div>
       </div>
@@ -350,8 +350,8 @@ function fmtTime(ts) {
         <div class="partner-badge-section" :class="{ qualified: teamStats.directCount >= 1 }">
           <div class="badge-icon">{{ teamStats.directCount >= 1 ? '📊' : '🔒' }}</div>
           <div class="badge-info">
-            <div class="badge-title">平级奖 · {{ teamStats.directCount >= 1 ? '已解锁15层' : '邀请1人解锁15层' }}</div>
-            <div class="badge-subtitle">{{ teamStats.directCount >= 1 ? '每人激活可收取15层平级奖，每层10元' : '邀请1位朋友激活后，解锁完整15层平级网体' }}</div>
+            <div class="badge-title">平级奖 · {{ teamStats.directCount >= 1 ? '已解锁10层' : '邀请1人解锁10层' }}</div>
+            <div class="badge-subtitle">{{ teamStats.directCount >= 1 ? '每人激活可收取10层平级奖，每层10元' : '邀请1位朋友激活后，解锁完整10层平级网体' }}</div>
           </div>
           <span class="badge-status" :class="teamStats.directCount >= 1 ? 'active' : 'pending'">
             {{ teamStats.directCount >= 1 ? '✅ 已达标' : '⏳ 未达标' }}
@@ -361,7 +361,7 @@ function fmtTime(ts) {
         <div class="partner-progress">
           <div class="progress-item">
             <div class="progress-header">
-              <span class="progress-label">邀请进度（解锁15层）</span>
+              <span class="progress-label">邀请进度（解锁10层）</span>
               <span class="progress-value">{{ Math.min(teamStats.directCount, 1) }}/1 人</span>
             </div>
             <div class="progress-bar-wrapper">
@@ -376,7 +376,7 @@ function fmtTime(ts) {
         <div class="partner-dividend-stats" v-if="pingJiTasks.length > 0">
           <div class="stats-header">
             <span class="stats-title">平级奖统计</span>
-            <span class="pool-badge">10元/层 × 15层</span>
+            <span class="pool-badge">10元/层 × 10层</span>
           </div>
           <div class="stats-grid">
             <div class="stat-box">
@@ -393,9 +393,9 @@ function fmtTime(ts) {
         <div class="partner-dividend-info">
           <div class="info-header"><span class="info-title">📋 平级奖规则</span></div>
           <div class="info-list">
-            <div class="info-item"><span class="info-icon">🔗</span><span class="info-text">新人激活时，按邀请链向上追溯 <strong>15层</strong>，每层收10元</span></div>
-            <div class="info-item"><span class="info-icon">🎯</span><span class="info-text">邀请码用了1次：解锁完整 <strong>15层</strong>；未邀请：只拿 <strong>10层</strong></span></div>
-            <div class="info-item"><span class="info-icon">🔄</span><span class="info-text">不足15层时，剩余归已邀请1人的上位紧缩继承</span></div>
+            <div class="info-item"><span class="info-icon">🔗</span><span class="info-text">新人激活时，按邀请链向上追溯 <strong>10层</strong>，每层收10元</span></div>
+            <div class="info-item"><span class="info-icon">🎯</span><span class="info-text">邀请码用了1次：解锁完整 <strong>10层</strong>；未邀请：只拿 <strong>10层</strong></span></div>
+            <div class="info-item"><span class="info-icon">🔄</span><span class="info-text">不足10层时，剩余归已邀请1人的上位紧缩继承</span></div>
             <div class="info-item"><span class="info-icon">💵</span><span class="info-text">全程点对点打款，新人扫码直接付给平级收款人</span></div>
           </div>
         </div>
@@ -406,8 +406,8 @@ function fmtTime(ts) {
         <div class="hehuo-badge-section" :class="{ qualified: isOwner }">
           <div class="hehuo-badge-icon">{{ isOwner ? '🏆' : '🎯' }}</div>
           <div class="hehuo-badge-info">
-            <div class="hehuo-badge-title">{{ isOwner ? '🤝 店主合伙人' : '合伙人资格' }}</div>
-            <div class="hehuo-badge-sub">{{ isOwner ? '已出局开店，成为独立店主合伙人' : '完成激活并出局开店后成为合伙人' }}</div>
+            <div class="hehuo-badge-title">{{ isOwner ? '🤝 老板合伙人' : '合伙人资格' }}</div>
+            <div class="hehuo-badge-sub">{{ isOwner ? '已出局开店，成为独立老板合伙人' : '完成激活并出局开店后成为合伙人' }}</div>
           </div>
           <span class="hehuo-badge-status" :class="isOwner ? 'active' : 'pending'">
             {{ isOwner ? '✅ 已达标' : '⏳ 未达标' }}
@@ -434,10 +434,10 @@ function fmtTime(ts) {
         </div>
 
         <div class="hehuo-rights">
-          <div class="hehuo-rights-title">🎖️ 店主权益</div>
-          <div class="hehuo-right-item">✅ 永久接收见点奖（每人激活付100元）</div>
-          <div class="hehuo-right-item">✅ 接收帮扶奖（2位出局直推各50元）</div>
-          <div class="hehuo-right-item">✅ 收取平级奖（15层×10元）</div>
+          <div class="hehuo-rights-title">🎖️ 老板权益</div>
+          <div class="hehuo-right-item">✅ 永久接收见点奖（每人激活付70元）</div>
+          <div class="hehuo-right-item">✅ 接收帮扶奖（2位出局直推各30元）</div>
+          <div class="hehuo-right-item">✅ 收取平级奖（10层×10元）</div>
           <div class="hehuo-right-item">✅ 邀请码可再次使用（出局后重置）</div>
         </div>
       </div>

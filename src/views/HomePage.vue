@@ -49,7 +49,7 @@ async function handleRegister() {
 
       <div v-if="!store.isActivated" class="activate-section">
         <button class="btn-activate" @click="router.push('/activate')">
-          立即激活 · 350元
+          立即激活 · 230元
         </button>
         <p class="tip">激活后加入1+1互助模型</p>
       </div>
