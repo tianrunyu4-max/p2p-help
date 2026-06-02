@@ -12,6 +12,7 @@ async function isAdmin(request, env) {
 }
 
 export async function handleAdmin(request, env, pathname) {
+  if (!pathname.startsWith('/api/admin')) return null
   if (!await isAdmin(request, env)) return err('无权访问', 403)
 
   const db = getDB(env)
