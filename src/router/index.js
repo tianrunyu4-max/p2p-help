@@ -8,6 +8,7 @@ const routes = [
   { path: '/confirm',        component: () => import('../views/PendingConfirm.vue') },
   { path: '/profile',        component: () => import('../views/ProfilePage.vue') },
   { path: '/community',      component: () => import('../views/CommunityPage.vue') },
+  { path: '/subsidy',        component: () => import('../views/SubsidyPage.vue') },
   { path: '/admin',          component: () => import('../views/AdminPanel.vue') },
 ]
 

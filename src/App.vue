@@ -12,6 +12,7 @@ const navItems = [
   { path: '/',          icon: '🏠', label: '首页' },
   { path: '/myshop',   icon: '🏪', label: '店铺' },
   { path: '/community',icon: '💬', label: '社区' },
+  { path: '/subsidy',  icon: '💰', label: '补贴' },
   { path: '/confirm',  icon: '✅', label: '待确认' },
   { path: '/profile',  icon: '👤', label: '我的' },
 ]
