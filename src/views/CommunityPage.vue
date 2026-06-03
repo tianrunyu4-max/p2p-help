@@ -223,7 +223,7 @@ function closeImagePreview() { showImagePreview.value = false }
       <!-- 空状态 -->
       <div v-if="messages.length === 0" class="welcome-area">
         <div class="welcome-logo">🏪</div>
-        <h2 class="welcome-title">1+1 互助社区</h2>
+        <h2 class="welcome-title">1+1社区</h2>
         <p class="welcome-sub">点对点 · 直接打款 · 全程透明</p>
         <div class="welcome-tags">
           <button class="welcome-tag" @click="setQuickInput('@大虾 ')">🦞 @大虾 咨询</button>
@@ -412,8 +412,9 @@ function closeImagePreview() { showImagePreview.value = false }
 .chat-messages { flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:4px; scrollbar-width:none; }
 .chat-messages::-webkit-scrollbar { display:none; }
 
-.welcome-area { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 24px; text-align:center; }
-.welcome-logo { font-size:56px; margin-bottom:12px; }
+.welcome-area { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 24px; text-align:center; }
+.welcome-banner { width:100%; max-width:340px; border-radius:16px; overflow:hidden; margin-bottom:16px; box-shadow:0 4px 16px rgba(0,0,0,.12); }
+.banner-img { width:100%; height:auto; display:block; }
 .welcome-title { font-size:22px; font-weight:700; margin-bottom:6px; }
 .welcome-sub { font-size:14px; color:#999; margin-bottom:20px; }
 .welcome-tags { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
