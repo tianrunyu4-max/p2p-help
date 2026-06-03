@@ -1,6 +1,11 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/userStore.js'
 import { getMessageService } from '../services/messageService.js'
+
+const router = useRouter()
+const store  = useUserStore()
 import { uploadImage, uploadAvatar, uploadVideo } from '../services/uploadService.js'
 import { getOrCreateUserId } from '../utils/auth.js'
 import { isAIQuestion, getAIResponse } from '../services/aiBotService.js'
@@ -190,6 +195,29 @@ function closeImagePreview() { showImagePreview.value = false }
 
 <template>
   <div class="community-container">
+
+    <!-- 顶部 ID 栏 + 参与按钮 -->
+    <div class="community-topbar">
+      <div class="topbar-id">
+        <span class="id-icon">🪪</span>
+        <span class="id-label">ID</span>
+        <span class="id-num">{{ store.userId }}</span>
+      </div>
+      <button
+        v-if="!store.isActivated"
+        class="btn-participate"
+        @click="router.push('/participate')"
+      >
+        🤝 自愿参与
+      </button>
+      <button
+        v-else
+        class="btn-activated"
+        @click="router.push('/myshop')"
+      >
+        👑 我的店铺
+      </button>
+    </div>
     <!-- 消息流 -->
     <div class="chat-messages">
       <!-- 空状态 -->
@@ -369,6 +397,14 @@ function closeImagePreview() { showImagePreview.value = false }
 
 <style scoped>
 .community-container { display:flex; flex-direction:column; height:100%; background:#fff; position:relative; }
+
+.community-topbar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#fff; border-bottom:1px solid #f0f0f0; flex-shrink:0; }
+.topbar-id { display:flex; align-items:center; gap:5px; }
+.id-icon { font-size:16px; }
+.id-label { font-size:11px; color:#999; }
+.id-num { font-size:15px; font-weight:700; color:#333; letter-spacing:1px; }
+.btn-participate { padding:7px 14px; background:linear-gradient(135deg,#f0a500,#ffc700); color:#fff; border:none; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(240,165,0,.3); }
+.btn-activated { padding:7px 14px; background:#f0fff4; color:#07C160; border:1px solid #07C160; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; }
 .chat-messages { flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:4px; scrollbar-width:none; }
 .chat-messages::-webkit-scrollbar { display:none; }
 

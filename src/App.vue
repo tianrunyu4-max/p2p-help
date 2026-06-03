@@ -1,7 +1,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from './stores/userStore.js'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
 const router = useRouter()
 const route  = useRoute()
@@ -9,22 +9,28 @@ const store  = useUserStore()
 
 // 底部导航
 const navItems = [
-  { path: '/',          icon: '🏠', label: '首页' },
-  { path: '/myshop',   icon: '🏪', label: '店铺' },
-  { path: '/community',icon: '💬', label: '社区' },
-  { path: '/subsidy',  icon: '💰', label: '补贴' },
-  { path: '/confirm',  icon: '✅', label: '待确认' },
-  { path: '/profile',  icon: '👤', label: '我的' },
+  { path: '/community', icon: '💬', label: '社区' },
+  { path: '/myshop',    icon: '🏪', label: '店铺' },
+  { path: '/subsidy',   icon: '💰', label: '补贴' },
+  { path: '/confirm',   icon: '✅', label: '待确认' },
+  { path: '/profile',   icon: '👤', label: '我的' },
 ]
-const showNav = computed(() => store.isLoggedIn && !route.path.startsWith('/admin'))
+
+const hideNav = computed(() => {
+  const p = route.path
+  return p.startsWith('/admin') || p.startsWith('/participate') || p.startsWith('/payment')
+})
+
+// 首次进入自动建档
+onMounted(() => store.autoInit())
 </script>
 
 <template>
   <div class="app-wrap">
     <router-view />
 
-    <!-- 底部导航（登录后显示） -->
-    <nav v-if="showNav" class="bottom-nav">
+    <!-- 底部导航 -->
+    <nav v-if="!hideNav" class="bottom-nav">
       <div
         v-for="item in navItems"
         :key="item.path"
@@ -51,6 +57,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif
   display: flex; background: #fff;
   border-top: 1px solid #eee;
   z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center;
@@ -58,4 +65,5 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif
 }
 .nav-item.active { color: #f0a500; }
 .nav-icon { font-size: 22px; margin-bottom: 2px; }
+.nav-label { font-size: 11px; }
 </style>
