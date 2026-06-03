@@ -117,12 +117,64 @@ export async function handleAdmin(request, env, pathname) {
     })))
   }
 
+  // GET /api/admin/nodes — 查看所有节点用户（内排链）
+  if (pathname === '/api/admin/nodes' && request.method === 'GET') {
+    const { data: nodes } = await db.from('users')
+      .select('id, user_no, invite_code, wechat_qr, alipay_qr, is_active, is_node, node_order, total_received')
+      .eq('is_node', true)
+      .order('node_order', { ascending: true })
+    return ok(nodes || [])
+  }
+
   // POST /api/admin/set-node — 设置/取消节点用户
   if (pathname === '/api/admin/set-node' && request.method === 'POST') {
     const { userId, isNode, nodeOrder } = await request.json()
     await db.from('users').update({
       is_node:    !!isNode,
-      node_order: nodeOrder || 0,
+      node_order: isNode ? (nodeOrder || 0) : 0,
+      is_active:  isNode ? true : undefined, // 节点必须激活才能收平级奖
+    }).eq('id', userId)
+    return ok({ done: true })
+  }
+
+  // POST /api/admin/create-node — 快速创建节点账户
+  if (pathname === '/api/admin/create-node' && request.method === 'POST') {
+    const { nodeOrder } = await request.json()
+    if (!nodeOrder || nodeOrder < 1 || nodeOrder > 10) return err('节点序号必须1-10')
+
+    // 检查该序号是否已被占用
+    const { data: existing } = await db.from('users')
+      .select('id, user_no').eq('is_node', true).eq('node_order', nodeOrder).maybeSingle()
+    if (existing) return err(`节点${nodeOrder}号已存在（ID：${existing.user_no}）`)
+
+    const { generateUserId, generateInviteCode } = await import('../db.js')
+    const userNo   = await generateUserId(db)
+    const invCode  = await generateInviteCode(db)
+
+    const { data: newUser, error } = await db.from('users').insert({
+      user_no:     userNo,
+      invite_code: invCode,
+      is_node:     true,
+      node_order:  nodeOrder,
+      is_active:   true,    // 节点自动激活
+      is_frozen:   false,
+      is_exited:   false,
+      role:        'owner',
+      invite_used: 0,
+      total_received: 0,
+    }).select().single()
+
+    if (error) return err('创建失败：' + error.message)
+    return ok({ user_no: newUser.user_no, invite_code: newUser.invite_code, node_order: nodeOrder })
+  }
+
+  // POST /api/admin/node-set-qr — 设置节点收款码
+  if (pathname === '/api/admin/node-set-qr' && request.method === 'POST') {
+    const { userId, wechatQr, alipayQr } = await request.json()
+    if (!userId) return err('userId 必填')
+    await db.from('users').update({
+      wechat_qr: wechatQr || null,
+      alipay_qr: alipayQr || null,
     }).eq('id', userId)
     return ok({ done: true })
   }

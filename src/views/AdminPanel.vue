@@ -35,10 +35,18 @@ function handleLogout() {
 }
 
 // ── 数据 ──────────────────────────────────────
-const tab     = ref('orders')
+const tab     = ref('nodes')
 const orders  = ref([])
 const users   = ref([])
+const nodes   = ref([])
 const loading = ref(false)
+
+// 节点管理
+const creatingNode = ref(false)
+const nodeMsg      = ref('')
+const setNodeUserId  = ref('')
+const setNodeOrder   = ref(1)
+const setNodeLoading = ref(false)
 
 if (adminToken.value) {
   axios.defaults.headers.common['X-Admin-Token'] = adminToken.value
@@ -64,7 +72,17 @@ async function loadUsers() {
   } finally { loading.value = false }
 }
 
-onMounted(() => { if (adminToken.value) loadOrders() })
+async function loadNodes() {
+  loading.value = true
+  try {
+    const res = await axios.get('/api/admin/nodes')
+    nodes.value = res.data.data
+  } catch (e) {
+    if (e.response?.status === 403) handleLogout()
+  } finally { loading.value = false }
+}
+
+onMounted(() => { if (adminToken.value) loadNodes() })
 
 async function forceComplete(taskId) {
   if (!confirm('确认强制完成此任务？')) return
@@ -77,10 +95,50 @@ async function toggleFreeze(userId, frozen) {
   loadUsers()
 }
 
+// 快速创建节点账户
+async function createNode(order) {
+  creatingNode.value = true
+  nodeMsg.value = ''
+  try {
+    const res = await axios.post('/api/admin/create-node', { nodeOrder: order })
+    nodeMsg.value = `✅ 节点${order}号创建成功！ID：${res.data.data.user_no}，邀请码：${res.data.data.invite_code}`
+    await loadNodes()
+  } catch (e) {
+    nodeMsg.value = '❌ ' + (e.response?.data?.message || '创建失败')
+  } finally { creatingNode.value = false }
+}
+
+// 把已有用户设为节点
+async function setExistingAsNode() {
+  if (!setNodeUserId.value.trim()) { nodeMsg.value = '❌ 请输入用户ID'; return }
+  setNodeLoading.value = true
+  nodeMsg.value = ''
+  try {
+    // 先查用户
+    const usersRes = await axios.get(`/api/admin/users?q=${setNodeUserId.value.trim()}`)
+    const found = usersRes.data.data?.[0]
+    if (!found) { nodeMsg.value = '❌ 找不到该用户'; return }
+    await axios.post('/api/admin/set-node', { userId: found.id, isNode: true, nodeOrder: setNodeOrder.value })
+    nodeMsg.value = `✅ 用户 #${found.user_no} 已设为节点${setNodeOrder.value}号`
+    await loadNodes()
+  } catch (e) {
+    nodeMsg.value = '❌ ' + (e.response?.data?.message || '设置失败')
+  } finally { setNodeLoading.value = false }
+}
+
+// 移除节点
+async function removeNode(userId, userNo) {
+  if (!confirm(`确认移除节点用户 #${userNo}？`)) return
+  await axios.post('/api/admin/set-node', { userId, isNode: false })
+  nodeMsg.value = `✅ 已移除节点 #${userNo}`
+  await loadNodes()
+}
+
 function switchTab(t) {
   tab.value = t
   if (t === 'orders') loadOrders()
   if (t === 'users')  loadUsers()
+  if (t === 'nodes')  loadNodes()
 }
 </script>
 
@@ -117,14 +175,73 @@ function switchTab(t) {
       </div>
 
       <div class="tabs">
+        <button :class="['tab', tab==='nodes'?'active':'']"  @click="switchTab('nodes')">🔗 内排节点</button>
         <button :class="['tab', tab==='orders'?'active':'']" @click="switchTab('orders')">订单管理</button>
         <button :class="['tab', tab==='users'?'active':'']"  @click="switchTab('users')">用户管理</button>
       </div>
 
       <div v-if="loading" class="loading">加载中...</div>
 
+      <!-- 内排节点管理 -->
+      <template v-if="tab==='nodes' && !loading">
+        <div class="node-intro">
+          <div class="node-intro-title">🔗 内排节点链（10个）</div>
+          <div class="node-intro-sub">平级奖链不足10层时，节点账户按序号自动补位收款</div>
+        </div>
+
+        <!-- 当前节点链可视化 -->
+        <div class="node-chain">
+          <div v-for="i in 10" :key="i" class="node-slot">
+            <div class="node-order">{{ i }}</div>
+            <template v-if="nodes.find(n => n.node_order === i)">
+              <div class="node-info">
+                <div class="node-id">#{{ nodes.find(n => n.node_order === i).user_no }}</div>
+                <div class="node-qr-status">
+                  <span :class="nodes.find(n => n.node_order === i).wechat_qr ? 'qr-ok' : 'qr-no'">微信</span>
+                  <span :class="nodes.find(n => n.node_order === i).alipay_qr ? 'qr-ok' : 'qr-no'">支付宝</span>
+                </div>
+                <button class="btn-remove-node" @click="removeNode(nodes.find(n=>n.node_order===i).id, nodes.find(n=>n.node_order===i).user_no)">移除</button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="node-empty">
+                <button class="btn-create-node" :disabled="creatingNode" @click="createNode(i)">
+                  + 创建
+                </button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- 操作反馈 -->
+        <div v-if="nodeMsg" class="node-msg" :class="nodeMsg.startsWith('✅') ? 'msg-ok' : 'msg-err'">
+          {{ nodeMsg }}
+        </div>
+
+        <!-- 把已有用户设为节点 -->
+        <div class="set-node-box">
+          <div class="set-node-title">把已有用户设为节点</div>
+          <div class="set-node-row">
+            <input v-model="setNodeUserId" placeholder="输入用户ID（如：830274）" class="node-input" />
+            <select v-model="setNodeOrder" class="node-select">
+              <option v-for="i in 10" :key="i" :value="i">节点 {{ i }} 号</option>
+            </select>
+          </div>
+          <button class="btn-set-node" :disabled="setNodeLoading" @click="setExistingAsNode">
+            {{ setNodeLoading ? '设置中...' : '✅ 设为节点' }}
+          </button>
+        </div>
+
+        <!-- 说明 -->
+        <div class="node-tips">
+          <div class="tip">💡 节点账户需上传微信/支付宝收款码才能收到平级奖</div>
+          <div class="tip">💡 进入收款码设置：用该节点账号ID登录 → 我的页面 → 上传收款码</div>
+          <div class="tip">💡 10个节点按序号1→10形成内排链，补齐平级奖</div>
+        </div>
+      </template>
+
       <!-- 订单列表 -->
-      <template v-else-if="tab==='orders'">
+      <template v-else-if="tab==='orders' && !loading">
         <div v-for="o in orders" :key="o.id" class="order-card">
           <div class="order-top">
             <span class="order-id">订单 #{{ o.id.slice(0,8) }}</span>
@@ -149,7 +266,7 @@ function switchTab(t) {
       </template>
 
       <!-- 用户列表 -->
-      <template v-else>
+      <template v-else-if="tab==='users' && !loading">
         <div v-for="u in users" :key="u.id" class="user-card">
           <div class="user-info">
             <span class="user-no">#{{ u.user_no }}</span>
@@ -217,4 +334,36 @@ function switchTab(t) {
 .user-stats { font-size: 13px; color: #888; margin-bottom: 8px; }
 .btn-freeze { padding: 6px 14px; background: #e53e3e; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .btn-unfreeze { padding: 6px 14px; background: #48bb78; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+
+/* 节点管理 */
+.node-intro { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.node-intro-title { font-size: 14px; font-weight: 700; color: #7c4a00; }
+.node-intro-sub { font-size: 12px; color: #a16207; margin-top: 2px; }
+
+.node-chain { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.node-slot { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #f0f0f0; border-radius: 10px; padding: 10px 12px; }
+.node-order { width: 28px; height: 28px; background: #f0a500; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.node-info { flex: 1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.node-id { font-weight: 700; font-size: 14px; }
+.node-qr-status { display: flex; gap: 4px; }
+.qr-ok { background: #c6f6d5; color: #276749; font-size: 11px; padding: 2px 6px; border-radius: 8px; }
+.qr-no { background: #fed7d7; color: #9b2c2c; font-size: 11px; padding: 2px 6px; border-radius: 8px; }
+.node-empty { flex: 1; }
+.btn-create-node { padding: 5px 14px; background: #eee; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; color: #555; }
+.btn-create-node:hover { background: #f0a500; color: #fff; }
+.btn-remove-node { padding: 4px 10px; background: #fff5f5; border: 1px solid #fed7d7; border-radius: 6px; font-size: 12px; color: #e53e3e; cursor: pointer; margin-left: auto; }
+
+.node-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+.msg-ok { background: #c6f6d5; color: #276749; }
+.msg-err { background: #fed7d7; color: #9b2c2c; }
+
+.set-node-box { background: #fff; border: 1px solid #f0f0f0; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.set-node-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #333; }
+.set-node-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.node-input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; }
+.node-select { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; background: #fff; }
+.btn-set-node { width: 100%; padding: 10px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+
+.node-tips { background: #f9f9f9; border-radius: 10px; padding: 12px; }
+.node-tips .tip { font-size: 12px; color: #666; padding: 3px 0; }
 </style>
