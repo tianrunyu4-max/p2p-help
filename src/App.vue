@@ -65,5 +65,5 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif
 }
 .nav-item.active { color: #f0a500; }
 .nav-icon { font-size: 22px; margin-bottom: 2px; }
-.nav-label { font-size: 11px; }
+.nav-label { font-size: 12px; font-weight: 600; }
 </style>
