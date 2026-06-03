@@ -79,6 +79,14 @@ async function createActivationOrder(db, user) {
     level: t.level || null, status: 'pending',
   }))
   const { data: inserted } = await db.from('payment_tasks').insert(taskRows).select()
+
+  // 生活补贴玩家：被匹配后立即更新收款计数（锁定这笔收款）
+  for (const t of tasks) {
+    if (t.type === 'bang_fu_subsidy' && t.subsidy_queue_id) {
+      await updateSubsidyReceived(db, t.subsidy_queue_id)
+    }
+  }
+
   const full = await enrichTasks(db, inserted)
   return ok(formatOrder({ ...order, payment_tasks: full }))
 }
@@ -91,12 +99,6 @@ async function buildPaymentTasks(db, newUserId, referrer) {
   const { shopOwnerId } = await resolveShopWithContribution(db, newUserId, referrer)
   if (!shopOwnerId) return []
 
-  // 2. 获取管理员节点（帮扶未出局时代收）
-  const { data: adminNode } = await db.from('users')
-    .select('id').eq('is_node', true)
-    .order('node_order', { ascending: true })
-    .limit(1).maybeSingle()
-
   // 3. 见点 70 → 老板（同时触发）
   tasks.push({
     receiver_id: shopOwnerId,
@@ -105,29 +107,56 @@ async function buildPaymentTasks(db, newUserId, referrer) {
     type_label:  '见点奖',
   })
 
-  // 4. 帮扶 30×2 → 同时触发，找老板的2个直推中已出局者
+  // 4. 帮扶 30×2 → 同时触发
+  //    已出局直推 → 给该老板
+  //    未出局 → 触发匹配给生活补贴等待收款的静态玩家
   const { data: directPushes } = await db.from('users')
     .select('id, user_no, is_exited')
     .eq('referrer_id', shopOwnerId)
     .order('created_at')
     .limit(2)
 
+  // 获取生活补贴等待收款的玩家队列（按加入时间排序，优先匹配等待最久的）
+  const subsidyReceivers = await getSubsidyReceivers(db, 2)
+  let subsidyIdx = 0
+
   for (let i = 0; i < 2; i++) {
     const push = (directPushes || [])[i]
     if (push && push.is_exited) {
+      // 直推已出局 → 帮扶30给该老板
       tasks.push({
         receiver_id: push.id,
         amount:      BANG_FU,
         type:        'bang_fu',
         type_label:  `帮扶奖（直推${i+1}号老板）`,
       })
-    } else if (adminNode) {
-      tasks.push({
-        receiver_id: adminNode.id,
-        amount:      BANG_FU,
-        type:        'bang_fu_admin',
-        type_label:  `帮扶预留（直推${i+1}号未出局，管理员代收）`,
-      })
+    } else {
+      // 直推未出局 → 匹配给生活补贴等待收款的静态玩家
+      const subsidyPlayer = subsidyReceivers[subsidyIdx]
+      if (subsidyPlayer) {
+        tasks.push({
+          receiver_id: subsidyPlayer.user_id,
+          amount:      BANG_FU,
+          type:        'bang_fu_subsidy',
+          type_label:  `帮扶→生活补贴玩家（直推${i+1}号未出局）`,
+          subsidy_queue_id: subsidyPlayer.id,
+        })
+        subsidyIdx++
+      } else {
+        // 无静态玩家等待 → 给管理员节点暂存
+        const { data: adminNode } = await db.from('users')
+          .select('id').eq('is_node', true)
+          .order('node_order', { ascending: true })
+          .limit(1).maybeSingle()
+        if (adminNode) {
+          tasks.push({
+            receiver_id: adminNode.id,
+            amount:      BANG_FU,
+            type:        'bang_fu_admin',
+            type_label:  `帮扶预留（直推${i+1}号未出局，暂存节点）`,
+          })
+        }
+      }
     }
   }
 
@@ -136,6 +165,31 @@ async function buildPaymentTasks(db, newUserId, referrer) {
   tasks.push(...levelTasks)
 
   return tasks
+}
+
+// ── 获取生活补贴等待收款的玩家 ───────────────────────────────
+async function getSubsidyReceivers(db, count) {
+  // status='waiting'：已付款完成，等待收3笔的玩家（按时间排序，先进先出）
+  const { data } = await db.from('subsidy_queue')
+    .select('id, user_id, received_count')
+    .eq('status', 'waiting')
+    .lt('received_count', 3)        // 未收满3笔
+    .order('created_at', { ascending: true })
+    .limit(count)
+  return data || []
+}
+
+// ── 更新生活补贴收款计数 ──────────────────────────────────────
+async function updateSubsidyReceived(db, subsidyQueueId) {
+  const { data: q } = await db.from('subsidy_queue')
+    .select('received_count').eq('id', subsidyQueueId).single()
+  if (!q) return
+  const newCount = (q.received_count || 0) + 1
+  const newStatus = newCount >= 3 ? 'completed' : 'waiting'
+  await db.from('subsidy_queue').update({
+    received_count: newCount,
+    status: newStatus,
+  }).eq('id', subsidyQueueId)
 }
 
 // ── 滑落+贡献：决定新用户进入哪个店铺 ──────────────────────
