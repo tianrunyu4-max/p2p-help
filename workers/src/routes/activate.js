@@ -20,7 +20,7 @@ const JIAN_DIAN        = 70
 const BANG_FU          = 30
 const PING_JI          = 10
 const MAX_LEVEL        = 10
-const REPURCHASE_LIMIT = 1500
+const REPURCHASE_LIMIT = 700
 
 export async function handleActivate(request, env, pathname) {
   if (!pathname.startsWith('/api/activate') && !pathname.startsWith('/api/repurchase')) return null

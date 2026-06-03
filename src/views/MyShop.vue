@@ -26,7 +26,7 @@ const navItems = [
 const shop = ref(null)
 const teamStats = ref({
   directCount: 0, totalCount: 0,
-  totalReceived: 0, recentTasks: [], repurchaseNeed: false
+  totalReceived: 0, recentTasks: [], repurchaseNeed: false, agentsJoined: 0, bossesExited: 0, repurchaseLimit: 700
 })
 const me = computed(() => store.userInfo || {})
 const isOwner   = computed(() => me.value.role === 'owner')
@@ -117,18 +117,18 @@ function fmtTime(ts) {
           <span class="balance-unit">元</span>
         </div>
 
-        <!-- 收款进度（1500复投） -->
+        <!-- 收款进度（700复投） -->
         <div class="today-earnings-banner">
           <span class="earnings-icon">📈</span>
           <span class="earnings-label">累计进度</span>
-          <span class="earnings-amount gold">{{ fmt(teamStats.totalReceived) }} / 1500</span>
+          <span class="earnings-amount gold">{{ fmt(teamStats.totalReceived) }} / 700</span>
         </div>
 
         <div class="activate-guide-tip" v-if="teamStats.repurchaseNeed" style="background:#fff5f5;border-color:#fed7d7;color:#c53030">
-          🔄 累计收款已达 1500 元，请重新激活参与新一轮互助！
+          🔄 累计收款已达 700 元，请重新激活参与新一轮互助！
         </div>
         <div class="activate-guide-tip" v-else>
-          💡 累计收款满 1500 元后需重新激活，继续参与互助循环
+          💡 累计收款满 700 元后需重新激活，继续参与互助循环
         </div>
 
         <!-- 收款类型汇总 -->
@@ -262,6 +262,15 @@ function fmtTime(ts) {
       <!-- ════════════ 团队数据 ════════════ -->
       <div class="team-card" v-if="activeNav === 'team'">
         <div class="card-title">📊 团队数据</div>
+        <!-- 复投提示 -->
+        <div v-if="teamStats.repurchaseNeed" class="repurchase-alert">
+          <div class="ra-icon">🔄</div>
+          <div>
+            <div class="ra-title">收款已满700元，请复投！</div>
+            <div class="ra-sub">复投后继续参与互助，获得新一轮收款资格</div>
+          </div>
+        </div>
+
         <div class="team-stats">
           <div class="stat-item">
             <span class="stat-value">{{ teamStats.directCount }}</span>
@@ -276,8 +285,27 @@ function fmtTime(ts) {
             <span class="stat-label">累计收款(元)</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ fmt(1500 - teamStats.totalReceived > 0 ? 1500 - teamStats.totalReceived : 0) }}</span>
+            <span class="stat-value">{{ fmt(700 - teamStats.totalReceived > 0 ? 700 - teamStats.totalReceived : 0) }}</span>
             <span class="stat-label">距复投还差(元)</span>
+          </div>
+        </div>
+
+        <!-- 我的模型统计 -->
+        <div class="model-stats-row">
+          <div class="ms-item">
+            <span class="ms-icon">👔</span>
+            <div class="ms-info">
+              <div class="ms-num">{{ teamStats.agentsJoined }}</div>
+              <div class="ms-label">代理进入</div>
+            </div>
+          </div>
+          <div class="ms-divider"></div>
+          <div class="ms-item">
+            <span class="ms-icon">👑</span>
+            <div class="ms-info">
+              <div class="ms-num">{{ teamStats.bossesExited }}</div>
+              <div class="ms-label">老板出局</div>
+            </div>
           </div>
         </div>
 
@@ -668,7 +696,17 @@ function fmtTime(ts) {
   background:#fff; border-radius:12px; padding:16px; margin-bottom:12px;
 }
 .card-title { font-size:16px; font-weight:700; margin-bottom:14px; }
-.team-stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+.repurchase-alert { display:flex; align-items:center; gap:12px; background:#fff5f5; border:2px solid #e53e3e; border-radius:14px; padding:14px; margin-bottom:14px; }
+.ra-icon { font-size:28px; flex-shrink:0; }
+.ra-title { font-size:15px; font-weight:700; color:#c53030; }
+.ra-sub { font-size:12px; color:#e53e3e; margin-top:2px; }
+.team-stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+.model-stats-row { display:flex; background:#fff; border-radius:14px; padding:14px; margin-bottom:14px; border:1px solid #f0f0f0; }
+.ms-item { flex:1; display:flex; align-items:center; gap:10px; justify-content:center; }
+.ms-icon { font-size:24px; }
+.ms-num { font-size:22px; font-weight:700; color:#f0a500; }
+.ms-label { font-size:11px; color:#999; margin-top:1px; }
+.ms-divider { width:1px; background:#f0f0f0; margin:0 10px; }
 .stat-item { background:#f9fafb; border-radius:10px; padding:14px; text-align:center; }
 .stat-value { display:block; font-size:24px; font-weight:800; color:#1a202c; }
 .stat-label { display:block; font-size:11px; color:#888; margin-top:4px; }

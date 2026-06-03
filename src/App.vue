@@ -20,6 +20,23 @@ const hideNav = computed(() => {
   return p.startsWith('/admin') || p.startsWith('/participate') || p.startsWith('/payment')
 })
 
+// 复投锁定：收款满700且已激活
+const needRepurchase = computed(() => {
+  const u = store.userInfo
+  if (!u || !u.is_active) return false
+  return parseFloat(u.total_received || 0) >= 700
+})
+
+// 锁定时只允许访问社区和参与页
+function handleNavClick(path) {
+  if (needRepurchase.value && path !== '/community') {
+    alert('⚠️ 收款已满700元，请先复投后再使用其他功能')
+    router.push('/community')
+    return
+  }
+  router.push(path)
+}
+
 onMounted(() => {
   store.autoInit()
   startVersionCheck()
@@ -54,14 +71,19 @@ async function startVersionCheck() {
       <router-view />
     </div>
 
+    <!-- 复投提示横幅 -->
+    <div v-if="needRepurchase && !hideNav" class="repurchase-banner" @click="router.push('/community')">
+      🔄 收款已满700元，请点击"自愿参与"复投，解锁全部功能
+    </div>
+
     <!-- 底部导航 -->
     <nav v-if="!hideNav" class="bottom-nav">
       <div
         v-for="item in navItems"
         :key="item.path"
         class="nav-item"
-        :class="{ active: route.path === item.path }"
-        @click="router.push(item.path)"
+        :class="{ active: route.path === item.path, locked: needRepurchase && item.path !== '/community' }"
+        @click="handleNavClick(item.path)"
       >
         <span class="nav-icon">{{ item.icon }}</span>
         <span class="nav-label">{{ item.label }}</span>
@@ -116,4 +138,6 @@ html, body, #app { height: 100%; }
 .nav-item.active { color: #f0a500; }
 .nav-icon { font-size: 22px; margin-bottom: 2px; }
 .nav-label { font-size: 12px; font-weight: 600; }
+.nav-item.locked { opacity: 0.4; }
+.repurchase-banner { background: linear-gradient(135deg,#e53e3e,#c53030); color:#fff; text-align:center; font-size:13px; font-weight:600; padding:10px 14px; cursor:pointer; flex-shrink:0; }
 </style>
