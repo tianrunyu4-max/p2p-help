@@ -163,11 +163,42 @@ async function removeNode(userId, userNo) {
   await loadNodes()
 }
 
+// ── 生活补贴管理 ──────────────────────────────
+const subsidyQueue  = ref([])
+const subsidyStats  = ref({ waiting: 0, paying: 0, completed: 0 })
+const subsidyLoading = ref(false)
+const matchLoading  = ref(false)
+const matchMsg      = ref('')
+
+async function loadSubsidy() {
+  subsidyLoading.value = true
+  try {
+    const res = await axios.get('/api/subsidy/admin/queue')
+    subsidyQueue.value = res.data.data.queues || []
+    subsidyStats.value = res.data.data.stats || {}
+  } catch (e) {
+    if (e.response?.status === 403) handleLogout()
+  } finally { subsidyLoading.value = false }
+}
+
+async function triggerMatch() {
+  matchLoading.value = true
+  matchMsg.value = ''
+  try {
+    const res = await axios.post('/api/subsidy/admin/match')
+    matchMsg.value = '✅ ' + (res.data.data?.message || '匹配完成')
+    await loadSubsidy()
+  } catch (e) {
+    matchMsg.value = '❌ ' + (e.response?.data?.message || '匹配失败')
+  } finally { matchLoading.value = false }
+}
+
 function switchTab(t) {
   tab.value = t
-  if (t === 'orders') loadOrders()
-  if (t === 'users')  loadUsers()
-  if (t === 'nodes')  loadNodes()
+  if (t === 'orders')  loadOrders()
+  if (t === 'users')   loadUsers()
+  if (t === 'nodes')   loadNodes()
+  if (t === 'subsidy') loadSubsidy()
 }
 </script>
 
@@ -204,9 +235,10 @@ function switchTab(t) {
       </div>
 
       <div class="tabs">
-        <button :class="['tab', tab==='nodes'?'active':'']"  @click="switchTab('nodes')">🔗 内排节点</button>
-        <button :class="['tab', tab==='orders'?'active':'']" @click="switchTab('orders')">订单管理</button>
-        <button :class="['tab', tab==='users'?'active':'']"  @click="switchTab('users')">用户管理</button>
+        <button :class="['tab', tab==='nodes'?'active':'']"   @click="switchTab('nodes')">🔗 内排节点</button>
+        <button :class="['tab', tab==='subsidy'?'active':'']" @click="switchTab('subsidy')">💰 生活补贴</button>
+        <button :class="['tab', tab==='orders'?'active':'']"  @click="switchTab('orders')">订单管理</button>
+        <button :class="['tab', tab==='users'?'active':'']"   @click="switchTab('users')">用户管理</button>
       </div>
 
       <div v-if="loading" class="loading">加载中...</div>
@@ -291,6 +323,52 @@ function switchTab(t) {
           <div class="tip">💡 10个节点按序号1→10形成内排链，补齐平级奖</div>
         </div>
       </template>
+
+      <!-- 生活补贴管理 -->
+      <template v-if="tab==='subsidy' && !subsidyLoading">
+        <!-- 统计 -->
+        <div class="subsidy-stats">
+          <div class="ss-item">
+            <div class="ss-num">{{ subsidyStats.waiting }}</div>
+            <div class="ss-label">等待匹配</div>
+          </div>
+          <div class="ss-item">
+            <div class="ss-num">{{ subsidyStats.paying }}</div>
+            <div class="ss-label">付款中</div>
+          </div>
+          <div class="ss-item">
+            <div class="ss-num">{{ subsidyStats.completed }}</div>
+            <div class="ss-label">已完成</div>
+          </div>
+        </div>
+
+        <!-- 手动匹配 -->
+        <div class="match-box">
+          <div class="match-info">队列人数 ≥ 3 时可手动触发匹配（每人付2×30，等收3×30）</div>
+          <button class="btn-match" :disabled="matchLoading" @click="triggerMatch">
+            {{ matchLoading ? '匹配中...' : '⚡ 手动触发匹配' }}
+          </button>
+          <div v-if="matchMsg" class="match-msg" :class="matchMsg.startsWith('✅') ? 'msg-ok' : 'msg-err'">
+            {{ matchMsg }}
+          </div>
+        </div>
+
+        <!-- 队列列表 -->
+        <div class="subsidy-list">
+          <div v-for="q in subsidyQueue" :key="q.id" class="subsidy-row">
+            <div class="sr-left">
+              <span class="sr-no">#{{ q.user?.user_no || '?' }}</span>
+              <span :class="['sr-status', q.status]">{{ { waiting:'等待', paying:'付款中', completed:'完成' }[q.status] }}</span>
+            </div>
+            <div class="sr-right">
+              付 {{ q.paid_count }}/2 · 收 {{ q.received_count }}/3
+              <span class="sr-date">{{ q.created_at?.slice(5,10) }}</span>
+            </div>
+          </div>
+          <p v-if="!subsidyQueue.length" class="empty">暂无记录</p>
+        </div>
+      </template>
+      <div v-if="tab==='subsidy' && subsidyLoading" class="loading">加载中...</div>
 
       <!-- 订单列表 -->
       <template v-else-if="tab==='orders' && !loading">
@@ -431,4 +509,25 @@ function switchTab(t) {
 .qr-dialog-btns { display: flex; gap: 10px; }
 .btn-cancel { flex: 1; padding: 10px; background: #eee; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .btn-save { flex: 2; padding: 10px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+
+/* 生活补贴 */
+.subsidy-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+.ss-item { flex: 1; background: #fff; border-radius: 12px; padding: 14px; text-align: center; border: 1px solid #f0f0f0; }
+.ss-num { font-size: 28px; font-weight: 700; color: #f0a500; }
+.ss-label { font-size: 12px; color: #999; margin-top: 2px; }
+.match-box { background: #fff; border-radius: 12px; padding: 14px; margin-bottom: 12px; border: 1px solid #f0f0f0; }
+.match-info { font-size: 12px; color: #666; margin-bottom: 10px; }
+.btn-match { width: 100%; padding: 12px; background: linear-gradient(135deg,#f0a500,#e09000); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+.btn-match:disabled { background: #ddd; color: #aaa; }
+.match-msg { margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
+.subsidy-list { display: flex; flex-direction: column; gap: 8px; }
+.subsidy-row { background: #fff; border-radius: 10px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #f0f0f0; }
+.sr-left { display: flex; align-items: center; gap: 8px; }
+.sr-no { font-weight: 700; font-size: 14px; }
+.sr-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.sr-status.waiting { background: #fffbe6; color: #b7791f; }
+.sr-status.paying { background: #e3f0ff; color: #2b6cb0; }
+.sr-status.completed { background: #c6f6d5; color: #276749; }
+.sr-right { font-size: 12px; color: #888; display: flex; align-items: center; gap: 8px; }
+.sr-date { color: #bbb; }
 </style>
