@@ -347,7 +347,7 @@ function fmtTime(ts) {
           <div class="feature-item">
             <span class="feature-icon">🫱</span>
             <div class="feature-content">
-              <div class="feature-name">帮扶奖 (50元×2)</div>
+              <div class="feature-name">帮扶奖 (30元×2)</div>
               <div class="feature-desc">新人激活时，向老板邀请的已出局2位直推各付 30 元帮扶奖</div>
             </div>
           </div>
@@ -367,8 +367,8 @@ function fmtTime(ts) {
           </div>
         </div>
         <div class="subsidy-rules">
-          <div class="rule-item">✅ 帮扶奖：每人激活 → 向你的2位出局直推各付50元</div>
-          <div class="rule-item">✅ 如直推未出局，帮扶奖归老板收取</div>
+          <div class="rule-item">✅ 帮扶奖：每人激活 → 向你的2位出局直推各付30元</div>
+          <div class="rule-item">✅ 如直推未出局，帮扶奖匹配给生活补贴静态玩家</div>
           <div class="rule-item">✅ 全程点对点，资金不经平台</div>
         </div>
       </div>
