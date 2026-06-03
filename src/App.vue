@@ -7,7 +7,6 @@ const router = useRouter()
 const route  = useRoute()
 const store  = useUserStore()
 
-// 底部导航
 const navItems = [
   { path: '/community', icon: '💬', label: '社区' },
   { path: '/myshop',    icon: '🏪', label: '店铺' },
@@ -21,13 +20,11 @@ const hideNav = computed(() => {
   return p.startsWith('/admin') || p.startsWith('/participate') || p.startsWith('/payment')
 })
 
-// 首次进入自动建档
 onMounted(() => {
   store.autoInit()
   startVersionCheck()
 })
 
-// 智能刷新：每60秒检测线上版本，有新版本自动刷新
 let versionTimer = null
 async function startVersionCheck() {
   const getVersion = async () => {
@@ -40,7 +37,6 @@ async function startVersionCheck() {
   }
   const currentVersion = await getVersion()
   if (!currentVersion) return
-
   versionTimer = setInterval(async () => {
     const latest = await getVersion()
     if (latest && latest !== currentVersion) {
@@ -53,7 +49,10 @@ async function startVersionCheck() {
 
 <template>
   <div class="app-wrap">
-    <router-view />
+    <!-- 页面内容区（flex:1 撑满剩余空间） -->
+    <div class="page-content">
+      <router-view />
+    </div>
 
     <!-- 底部导航 -->
     <nav v-if="!hideNav" class="bottom-nav">
@@ -74,20 +73,45 @@ async function startVersionCheck() {
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; background: #f5f5f5; }
-#app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #fff; position: relative; }
-.app-wrap { min-height: 100vh; padding-bottom: 60px; }
+html, body, #app { height: 100%; }
+
+#app { max-width: 480px; margin: 0 auto; height: 100%; }
+
+.app-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 页面内容区：撑满空间，各页面在这里滚动 */
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 社区页特殊处理：需要内部自己管理滚动 */
+.page-content:has(.community-container) {
+  overflow: hidden;
+}
 
 .bottom-nav {
-  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px;
-  display: flex; background: #fff;
+  flex-shrink: 0;
+  display: flex;
+  background: #fff;
   border-top: 1px solid #eee;
-  z-index: 999;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .nav-item {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  padding: 8px 0; cursor: pointer; color: #999; font-size: 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  cursor: pointer;
+  color: #999;
 }
 .nav-item.active { color: #f0a500; }
 .nav-icon { font-size: 22px; margin-bottom: 2px; }

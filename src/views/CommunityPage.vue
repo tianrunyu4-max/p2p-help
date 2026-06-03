@@ -398,9 +398,8 @@ function closeImagePreview() { showImagePreview.value = false }
 <style scoped>
 .community-container {
   display:flex; flex-direction:column; background:#fff;
-  position:fixed; top:0; left:0; right:0; bottom:60px;
-  max-width:480px; margin:0 auto;
-  z-index:1;
+  height: 100%;
+  overflow: hidden;
 }
 
 .community-topbar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#fff; border-bottom:1px solid #f0f0f0; flex-shrink:0; }
