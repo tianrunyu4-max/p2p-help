@@ -21,7 +21,9 @@ jobs:
         run: npm ci
 
       - name: 构建前端
-        run: npm run build
+        run: |
+          echo "{\"v\":\"$(date +%s)\"}" > public/version.json
+          npm run build
 
       # 2. 安装 Worker 依赖
       - name: 安装 Worker 依赖

@@ -22,7 +22,33 @@ const hideNav = computed(() => {
 })
 
 // 首次进入自动建档
-onMounted(() => store.autoInit())
+onMounted(() => {
+  store.autoInit()
+  startVersionCheck()
+})
+
+// 智能刷新：每60秒检测线上版本，有新版本自动刷新
+let versionTimer = null
+async function startVersionCheck() {
+  const getVersion = async () => {
+    try {
+      const res = await fetch('/version.json?_=' + Date.now(), { cache: 'no-store' })
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.v
+    } catch { return null }
+  }
+  const currentVersion = await getVersion()
+  if (!currentVersion) return
+
+  versionTimer = setInterval(async () => {
+    const latest = await getVersion()
+    if (latest && latest !== currentVersion) {
+      clearInterval(versionTimer)
+      window.location.reload()
+    }
+  }, 60000)
+}
 </script>
 
 <template>
@@ -56,7 +82,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif
   width: 100%; max-width: 480px;
   display: flex; background: #fff;
   border-top: 1px solid #eee;
-  z-index: 100;
+  z-index: 999;
   padding-bottom: env(safe-area-inset-bottom);
 }
 .nav-item {
