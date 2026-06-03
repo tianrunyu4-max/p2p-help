@@ -126,6 +126,35 @@ async function setExistingAsNode() {
   } finally { setNodeLoading.value = false }
 }
 
+// QR 弹窗
+const qrDialog    = ref(null)   // { id, user_no, wechat_qr, alipay_qr }
+const qrWechat    = ref('')
+const qrAlipay    = ref('')
+const qrSaving    = ref(false)
+
+function openQrDialog(node) {
+  qrDialog.value = node
+  qrWechat.value = node.wechat_qr || ''
+  qrAlipay.value = node.alipay_qr || ''
+}
+
+async function saveQr() {
+  if (!qrDialog.value) return
+  qrSaving.value = true
+  try {
+    await axios.post('/api/admin/node-set-qr', {
+      userId:   qrDialog.value.id,
+      wechatQr: qrWechat.value.trim() || null,
+      alipayQr: qrAlipay.value.trim() || null,
+    })
+    nodeMsg.value = `✅ #${qrDialog.value.user_no} 收款码已保存`
+    qrDialog.value = null
+    await loadNodes()
+  } catch {
+    nodeMsg.value = '❌ 保存失败'
+  } finally { qrSaving.value = false }
+}
+
 // 移除节点
 async function removeNode(userId, userNo) {
   if (!confirm(`确认移除节点用户 #${userNo}？`)) return
@@ -200,6 +229,7 @@ function switchTab(t) {
                   <span :class="nodes.find(n => n.node_order === i).wechat_qr ? 'qr-ok' : 'qr-no'">微信</span>
                   <span :class="nodes.find(n => n.node_order === i).alipay_qr ? 'qr-ok' : 'qr-no'">支付宝</span>
                 </div>
+                <button class="btn-set-qr" @click="openQrDialog(nodes.find(n=>n.node_order===i))">设收款码</button>
                 <button class="btn-remove-node" @click="removeNode(nodes.find(n=>n.node_order===i).id, nodes.find(n=>n.node_order===i).user_no)">移除</button>
               </div>
             </template>
@@ -230,6 +260,28 @@ function switchTab(t) {
           <button class="btn-set-node" :disabled="setNodeLoading" @click="setExistingAsNode">
             {{ setNodeLoading ? '设置中...' : '✅ 设为节点' }}
           </button>
+        </div>
+
+        <!-- QR 设置弹窗 -->
+        <div v-if="qrDialog" class="qr-overlay" @click.self="qrDialog=null">
+          <div class="qr-dialog">
+            <div class="qr-dialog-title">设置收款码 · #{{ qrDialog.user_no }}</div>
+            <div class="qr-field">
+              <label>微信收款码 URL</label>
+              <input v-model="qrWechat" placeholder="粘贴图片链接（上传后复制URL）" class="qr-url-input" />
+            </div>
+            <div class="qr-field">
+              <label>支付宝收款码 URL</label>
+              <input v-model="qrAlipay" placeholder="粘贴图片链接（上传后复制URL）" class="qr-url-input" />
+            </div>
+            <div class="qr-dialog-tip">💡 将收款码图片上传到图床（如 imgbb.com），复制图片链接粘贴上来</div>
+            <div class="qr-dialog-btns">
+              <button class="btn-cancel" @click="qrDialog=null">取消</button>
+              <button class="btn-save" :disabled="qrSaving" @click="saveQr">
+                {{ qrSaving ? '保存中...' : '✅ 保存' }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 说明 -->
@@ -366,4 +418,17 @@ function switchTab(t) {
 
 .node-tips { background: #f9f9f9; border-radius: 10px; padding: 12px; }
 .node-tips .tip { font-size: 12px; color: #666; padding: 3px 0; }
+.btn-set-qr { padding: 4px 10px; background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 6px; font-size: 12px; color: #2b6cb0; cursor: pointer; }
+
+/* QR 弹窗 */
+.qr-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.qr-dialog { background: #fff; border-radius: 16px; padding: 20px; width: 100%; max-width: 400px; }
+.qr-dialog-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+.qr-field { margin-bottom: 12px; }
+.qr-field label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+.qr-url-input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box; }
+.qr-dialog-tip { font-size: 11px; color: #999; background: #f9f9f9; border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
+.qr-dialog-btns { display: flex; gap: 10px; }
+.btn-cancel { flex: 1; padding: 10px; background: #eee; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.btn-save { flex: 2; padding: 10px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
 </style>
