@@ -1,14 +1,22 @@
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore.js'
 import { getMessageService } from '../services/messageService.js'
-
-const router = useRouter()
-const store  = useUserStore()
 import { uploadImage, uploadAvatar, uploadVideo } from '../services/uploadService.js'
 import { getOrCreateUserId } from '../utils/auth.js'
 import { isAIQuestion, getAIResponse } from '../services/aiBotService.js'
+
+const router = useRouter()
+const store  = useUserStore()
+
+// 身份勋章
+const badge = computed(() => {
+  const u = store.userInfo
+  if (!u || !u.is_active) return { label: '游客', icon: '🌱', color: '#718096', bg: '#EDF2F7' }
+  if (u.is_exited || u.role === 'owner') return { label: '老板', icon: '👑', color: '#B7791F', bg: '#FFFFF0' }
+  return { label: '代理', icon: '👔', color: '#2B6CB0', bg: '#EBF8FF' }
+})
 
 const messageService = getMessageService()
 const messages    = ref(messageService.getMessages())
@@ -202,6 +210,9 @@ function closeImagePreview() { showImagePreview.value = false }
         <span class="id-icon">🪪</span>
         <span class="id-label">ID</span>
         <span class="id-num">{{ store.userId }}</span>
+        <span class="id-badge" :style="{ color: badge.color, background: badge.bg }">
+          {{ badge.icon }} {{ badge.label }}
+        </span>
       </div>
       <button
         v-if="!store.isActivated"
@@ -407,6 +418,7 @@ function closeImagePreview() { showImagePreview.value = false }
 .id-icon { font-size:16px; }
 .id-label { font-size:11px; color:#999; }
 .id-num { font-size:15px; font-weight:700; color:#333; letter-spacing:1px; }
+.id-badge { font-size:11px; font-weight:600; padding:2px 8px; border-radius:10px; white-space:nowrap; }
 .btn-participate { padding:7px 14px; background:linear-gradient(135deg,#f0a500,#ffc700); color:#fff; border:none; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(240,165,0,.3); }
 .btn-activated { padding:7px 14px; background:#f0fff4; color:#07C160; border:1px solid #07C160; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; }
 .chat-messages { flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:4px; scrollbar-width:none; }
