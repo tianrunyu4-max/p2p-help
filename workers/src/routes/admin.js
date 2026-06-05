@@ -73,21 +73,51 @@ export async function handleAdmin(request, env, pathname) {
     return ok({ forced: true })
   }
 
-  // GET /api/admin/users — 用户列表
+  // GET /api/admin/users — 已激活用户列表（含推荐人ID + 身份 + 出局人数）
   if (pathname === '/api/admin/users' && request.method === 'GET') {
     const url  = new URL(request.url)
     const q    = url.searchParams.get('q') || ''
     const page = parseInt(url.searchParams.get('page') || '1')
 
     let query = db.from('users')
-      .select('id, user_no, email, invite_code, invite_used, is_active, is_frozen, is_exited, role, total_received, created_at')
+      .select('id, user_no, referrer_id, invite_code, invite_used, is_active, is_frozen, is_exited, role, total_received, created_at')
+      .eq('is_active', true)          // 只显示已激活用户
       .order('created_at', { ascending: false })
       .range((page - 1) * 50, page * 50 - 1)
 
-    if (q) query = query.or(`phone.ilike.%${q}%,user_no.ilike.%${q}%`)
+    if (q) query = query.ilike('user_no', `%${q}%`)
 
     const { data: users } = await query
-    return ok(users || [])
+    if (!users?.length) return ok([])
+
+    // 批量获取推荐人 user_no
+    const referrerIds = [...new Set(users.filter(u => u.referrer_id).map(u => u.referrer_id))]
+    let referrerMap = {}
+    if (referrerIds.length) {
+      const { data: referrers } = await db.from('users').select('id, user_no').in('id', referrerIds)
+      for (const r of referrers || []) referrerMap[r.id] = r.user_no
+    }
+
+    // 统计每人的出局直推数量
+    const userIds = users.map(u => u.id)
+    const { data: exitedRefs } = await db.from('users')
+      .select('referrer_id').in('referrer_id', userIds).eq('is_exited', true)
+    const exitedCountMap = {}
+    for (const r of exitedRefs || []) {
+      exitedCountMap[r.referrer_id] = (exitedCountMap[r.referrer_id] || 0) + 1
+    }
+
+    return ok(users.map(u => ({
+      id:           u.id,
+      user_no:      u.user_no,
+      referrer_no:  referrerMap[u.referrer_id] || null,
+      role:         u.role,
+      is_exited:    u.is_exited,
+      invite_used:  u.invite_used,
+      total_received: u.total_received,
+      is_frozen:    u.is_frozen,
+      exited_count: exitedCountMap[u.id] || 0,
+    })))
   }
 
   // POST /api/admin/freeze-user — 冻结/解冻用户

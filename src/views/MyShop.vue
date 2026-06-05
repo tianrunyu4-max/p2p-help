@@ -312,8 +312,8 @@ function fmtTime(ts) {
           </div>
         </div>
 
-        <!-- 我的邀请码 -->
-        <div class="invite-box">
+        <!-- 我的邀请码（仅激活用户可见）-->
+        <div v-if="store.isActivated" class="invite-box">
           <div class="invite-box-title">我的邀请码</div>
           <div class="invite-box-row">
             <span class="invite-big">{{ me.invite_code || '--' }}</span>
@@ -322,6 +322,9 @@ function fmtTime(ts) {
             </button>
           </div>
           <div class="invite-used-tip">已使用 {{ me.invite_used || 0 }}/2 次（每人最多邀请2位）</div>
+        </div>
+        <div v-else class="invite-locked">
+          🔒 激活后才能获得邀请码
         </div>
       </div>
 
@@ -695,6 +698,7 @@ function fmtTime(ts) {
 .stat-item { background:#f9fafb; border-radius:10px; padding:14px; text-align:center; }
 .stat-value { display:block; font-size:24px; font-weight:800; color:#1a202c; }
 .stat-label { display:block; font-size:11px; color:#888; margin-top:4px; }
+.invite-locked { background:#f5f5f5; border-radius:10px; padding:14px; text-align:center; color:#999; font-size:13px; margin-top:14px; }
 .invite-box { background:#fffbea; border-radius:10px; padding:14px; text-align:center; margin-top:14px; }
 .invite-box-title { font-size:12px; color:#888; margin-bottom:8px; }
 .invite-box-row { display:flex; align-items:center; justify-content:center; gap:10px; }

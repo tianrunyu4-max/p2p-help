@@ -471,25 +471,34 @@ function switchTab(t) {
           <div v-if="maMsg" :class="['ma-msg', maMsg.startsWith('✅') ? 'ok' : 'fail']">{{ maMsg }}</div>
         </div>
 
-        <div v-for="u in users" :key="u.id" class="user-card">
-          <div class="user-info">
-            <span class="user-no">#{{ u.user_no }}</span>
-            <span class="user-email">{{ u.email }}</span>
-            <span :class="['freeze-badge', u.is_frozen ? 'frozen' : 'normal']">
-              {{ u.is_frozen ? '已冻结' : '正常' }}
+        <div v-for="u in users" :key="u.id" class="user-row">
+          <!-- 用户ID + 推荐人ID -->
+          <div class="ur-ids">
+            <span class="ur-self">#{{ u.user_no }}</span>
+            <span class="ur-arrow">←</span>
+            <span class="ur-ref">{{ u.referrer_no ? '#'+u.referrer_no : '根用户' }}</span>
+          </div>
+          <!-- 身份 + 状态 -->
+          <div class="ur-badges">
+            <span :class="['ur-role', u.role === 'owner' ? 'owner' : 'agent']">
+              {{ u.role === 'owner' ? '👑 老板' : '👔 代理' }}
             </span>
+            <span v-if="u.is_exited" class="ur-exited">已出局</span>
+            <span v-if="u.is_frozen" class="ur-frozen">已冻结</span>
           </div>
-          <div class="user-stats">
-            累计收款：¥{{ u.total_received }} · 直推：{{ u.invite_used }}/2人
+          <!-- 数据统计 -->
+          <div class="ur-stats">
+            <span>收款 ¥{{ u.total_received || 0 }}</span>
+            <span>直推 {{ u.invite_used || 0 }}/2</span>
+            <span :class="u.exited_count >= 2 ? 'ur-exited-full' : ''">出局 {{ u.exited_count || 0 }}/2</span>
           </div>
+          <!-- 操作 -->
           <button
             :class="u.is_frozen ? 'btn-unfreeze' : 'btn-freeze'"
             @click="toggleFreeze(u.id, u.is_frozen)"
-          >
-            {{ u.is_frozen ? '解冻' : '冻结账户' }}
-          </button>
+          >{{ u.is_frozen ? '解冻' : '冻结' }}</button>
         </div>
-        <p v-if="!users.length && !loading" class="empty">暂无用户</p>
+        <p v-if="!users.length && !loading" class="empty">暂无已激活用户</p>
       </template>
     </template>
   </div>
@@ -547,14 +556,20 @@ function switchTab(t) {
 .thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; cursor: pointer; }
 .order-actions { text-align: right; }
 .btn-force { padding: 6px 14px; background: #f0a500; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-.user-card { background: #fff; border: 1px solid #f0f0f0; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
-.user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.user-no { font-weight: 700; font-size: 15px; }
-.user-email { color: #666; font-size: 13px; }
-.freeze-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
-.freeze-badge.normal { background: #c6f6d5; color: #276749; }
-.freeze-badge.frozen { background: #fed7d7; color: #9b2c2c; }
-.user-stats { font-size: 13px; color: #888; margin-bottom: 8px; }
+/* 用户管理表格 */
+.user-row { background:#fff; border:1px solid #f0f0f0; border-radius:12px; padding:12px 14px; margin-bottom:10px; display:flex; flex-direction:column; gap:6px; }
+.ur-ids { display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; }
+.ur-self { color:#333; }
+.ur-arrow { color:#ccc; font-size:12px; }
+.ur-ref { color:#888; font-size:13px; font-weight:400; }
+.ur-badges { display:flex; gap:6px; flex-wrap:wrap; }
+.ur-role { font-size:12px; padding:2px 10px; border-radius:10px; font-weight:600; }
+.ur-role.owner { background:#fffbeb; color:#b7791f; border:1px solid #f6e05e; }
+.ur-role.agent { background:#ebf8ff; color:#2b6cb0; border:1px solid #90cdf4; }
+.ur-exited { font-size:12px; padding:2px 8px; border-radius:10px; background:#e9d8fd; color:#553c9a; }
+.ur-frozen { font-size:12px; padding:2px 8px; border-radius:10px; background:#fed7d7; color:#9b2c2c; }
+.ur-stats { display:flex; gap:14px; font-size:13px; color:#888; }
+.ur-exited-full { color:#e53e3e; font-weight:600; }
 .btn-freeze { padding: 6px 14px; background: #e53e3e; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .btn-unfreeze { padding: 6px 14px; background: #48bb78; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
 
