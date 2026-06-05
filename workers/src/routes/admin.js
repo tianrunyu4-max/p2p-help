@@ -179,6 +179,59 @@ export async function handleAdmin(request, env, pathname) {
     return ok({ done: true })
   }
 
+  // GET /api/admin/lookup/:userNo — 查询用户信息预览
+  const lookupMatch = pathname.match(/^\/api\/admin\/lookup\/(.+)$/)
+  if (lookupMatch && request.method === 'GET') {
+    const { data: u } = await db.from('users')
+      .select('id, user_no, is_active, is_exited, role, referrer_id, invite_code, invite_used, total_received')
+      .eq('user_no', lookupMatch[1]).maybeSingle()
+    if (!u) return err('用户不存在')
+    let referrer_no = null
+    if (u.referrer_id) {
+      const { data: r } = await db.from('users').select('user_no').eq('id', u.referrer_id).single()
+      referrer_no = r?.user_no || null
+    }
+    return ok({ ...u, referrer_no })
+  }
+
+  // POST /api/admin/manual-activate — 手动内排激活（跳过打款流程）
+  if (pathname === '/api/admin/manual-activate' && request.method === 'POST') {
+    const { userNo, referrerNo } = await request.json()
+    if (!userNo) return err('用户ID必填')
+
+    const { data: target } = await db.from('users')
+      .select('*').eq('user_no', String(userNo)).maybeSingle()
+    if (!target) return err(`用户 #${userNo} 不存在，请先让他打开APP注册`)
+    if (target.is_active) return err(`用户 #${userNo} 已是激活状态`)
+
+    let referrerId = null
+    let referrerNo_out = null
+
+    if (referrerNo && String(referrerNo).trim()) {
+      const { data: referrer } = await db.from('users')
+        .select('id, user_no, is_active, invite_used').eq('user_no', String(referrerNo).trim()).maybeSingle()
+      if (!referrer) return err(`推荐人 #${referrerNo} 不存在`)
+      if (!referrer.is_active) return err(`推荐人 #${referrerNo} 尚未激活`)
+      referrerId = referrer.id
+      referrerNo_out = referrer.user_no
+      // 更新推荐人邀请计数
+      await db.from('users').update({ invite_used: (referrer.invite_used || 0) + 1 }).eq('id', referrerId)
+    }
+
+    const updateData = { is_active: true, is_exited: false, role: 'owner' }
+    if (referrerId) updateData.referrer_id = referrerId
+
+    await db.from('users').update(updateData).eq('id', target.id)
+
+    return ok({
+      user_no: target.user_no,
+      referrer_no: referrerNo_out,
+      message: referrerNo_out
+        ? `✅ #${userNo} 已激活为代理，推荐人：#${referrerNo_out}`
+        : `✅ #${userNo} 已激活为平台第一人（根用户，无推荐人）`
+    })
+  }
+
   // GET /api/admin/tree/:userId — 查看用户下的邀请树（3层）
   const treeMatch = pathname.match(/^\/api\/admin\/tree\/(.+)$/)
   if (treeMatch && request.method === 'GET') {

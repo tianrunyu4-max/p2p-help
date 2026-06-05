@@ -163,6 +163,48 @@ async function removeNode(userId, userNo) {
   await loadNodes()
 }
 
+// ── 手动内排激活 ──────────────────────────────
+const maUserNo     = ref('')   // 要激活的用户ID
+const maReferrerNo = ref('')   // 推荐人ID（可留空=根用户）
+const maPreview    = ref(null) // 查询到的用户信息
+const maMsg        = ref('')
+const maLoading    = ref(false)
+
+async function lookupUser() {
+  if (!maUserNo.value.trim()) { maMsg.value = '❌ 请输入用户ID'; return }
+  maPreview.value = null
+  maMsg.value = ''
+  try {
+    const res = await axios.get(`/api/admin/lookup/${maUserNo.value.trim()}`)
+    maPreview.value = res.data.data
+  } catch (e) {
+    maMsg.value = '❌ ' + (e.response?.data?.message || '用户不存在')
+  }
+}
+
+async function doManualActivate() {
+  if (!maUserNo.value.trim()) { maMsg.value = '❌ 请输入用户ID'; return }
+  const label = maReferrerNo.value.trim()
+    ? `确认激活 #${maUserNo.value}，推荐人 #${maReferrerNo.value}？`
+    : `确认激活 #${maUserNo.value} 为平台第一人（无推荐人）？`
+  if (!confirm(label)) return
+  maLoading.value = true
+  maMsg.value = ''
+  try {
+    const res = await axios.post('/api/admin/manual-activate', {
+      userNo:     maUserNo.value.trim(),
+      referrerNo: maReferrerNo.value.trim() || null,
+    })
+    maMsg.value = res.data.data.message
+    maPreview.value = null
+    maUserNo.value = ''
+    maReferrerNo.value = ''
+    loadUsers()
+  } catch (e) {
+    maMsg.value = '❌ ' + (e.response?.data?.message || '激活失败')
+  } finally { maLoading.value = false }
+}
+
 // ── 生活补贴管理 ──────────────────────────────
 const subsidyQueue  = ref([])
 const subsidyStats  = ref({ waiting: 0, paying: 0, completed: 0 })
@@ -397,6 +439,38 @@ function switchTab(t) {
 
       <!-- 用户列表 -->
       <template v-else-if="tab==='users' && !loading">
+
+        <!-- 手动内排激活 -->
+        <div class="ma-card">
+          <div class="ma-title">⚡ 手动内排激活</div>
+          <div class="ma-sub">跳过打款流程，直接激活为代理（老板身份）</div>
+          <div class="ma-row">
+            <input v-model="maUserNo" class="ma-input" placeholder="用户ID（如 890494）" @keyup.enter="lookupUser" />
+            <button class="ma-btn-query" @click="lookupUser">查询</button>
+          </div>
+          <!-- 查询预览 -->
+          <div v-if="maPreview" class="ma-preview">
+            <div class="ma-preview-row">
+              <span class="ma-label">用户</span>
+              <span class="ma-val">#{{ maPreview.user_no }}</span>
+              <span :class="['ma-status', maPreview.is_active ? 'active' : 'inactive']">
+                {{ maPreview.is_active ? '已激活' : '未激活' }}
+              </span>
+            </div>
+            <div class="ma-preview-row" v-if="maPreview.referrer_no">
+              <span class="ma-label">现推荐人</span>
+              <span class="ma-val">#{{ maPreview.referrer_no }}</span>
+            </div>
+          </div>
+          <div class="ma-row" style="margin-top:8px">
+            <input v-model="maReferrerNo" class="ma-input" placeholder="推荐人ID（留空=平台第一人）" />
+          </div>
+          <button class="ma-btn-activate" :disabled="maLoading || !maUserNo" @click="doManualActivate">
+            {{ maLoading ? '激活中...' : '⚡ 立即激活' }}
+          </button>
+          <div v-if="maMsg" :class="['ma-msg', maMsg.startsWith('✅') ? 'ok' : 'fail']">{{ maMsg }}</div>
+        </div>
+
         <div v-for="u in users" :key="u.id" class="user-card">
           <div class="user-info">
             <span class="user-no">#{{ u.user_no }}</span>
@@ -443,6 +517,25 @@ function switchTab(t) {
 .tab.active { background: #333; color: #fff; border-color: #333; }
 .loading { text-align: center; padding: 40px; color: #999; }
 .empty { text-align: center; color: #bbb; padding: 40px; font-size: 14px; }
+/* 手动激活表单 */
+.ma-card { background: #fff; border: 2px solid #f0a500; border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+.ma-title { font-size: 15px; font-weight: 700; color: #b7791f; margin-bottom: 2px; }
+.ma-sub { font-size: 12px; color: #999; margin-bottom: 12px; }
+.ma-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.ma-input { flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+.ma-btn-query { padding: 10px 14px; background: #eee; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ma-btn-activate { width: 100%; padding: 12px; background: linear-gradient(135deg,#f0a500,#e08000); color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+.ma-btn-activate:disabled { background: #ddd; color: #aaa; cursor: not-allowed; }
+.ma-preview { background: #fffbe6; border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; }
+.ma-preview-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+.ma-label { color: #999; min-width: 52px; }
+.ma-val { font-weight: 600; color: #333; }
+.ma-status.active { color: #276749; background: #c6f6d5; padding: 1px 8px; border-radius: 8px; font-size: 11px; }
+.ma-status.inactive { color: #9b2c2c; background: #fed7d7; padding: 1px 8px; border-radius: 8px; font-size: 11px; }
+.ma-msg { margin-top: 8px; font-size: 13px; padding: 8px 10px; border-radius: 8px; }
+.ma-msg.ok { background: #c6f6d5; color: #276749; }
+.ma-msg.fail { background: #fed7d7; color: #9b2c2c; }
+
 .order-card { background: #fff; border: 1px solid #f0f0f0; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
 .order-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
 .order-id { font-size: 13px; color: #999; }
