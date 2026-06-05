@@ -39,7 +39,10 @@ export const useUserStore = defineStore('user', () => {
   // 自动初始化：首次进入自动建档
   async function autoInit() {
     if (token.value && userInfo.value) {
+      // 老用户：直接用缓存数据，不阻塞页面渲染
       axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
+      // 后台静默刷新用户信息（不 await，不阻塞 UI）
+      _silentRefresh()
       return
     }
     try {
@@ -48,6 +51,14 @@ export const useUserStore = defineStore('user', () => {
         setToken(res.data.data.token)
         setUserInfo(res.data.data.user)
       }
+    } catch {}
+  }
+
+  // 后台静默刷新（不影响加载速度）
+  async function _silentRefresh() {
+    try {
+      const res = await axios.get('/api/auth/me')
+      if (res.data.code === 200) setUserInfo(res.data.data)
     } catch {}
   }
 

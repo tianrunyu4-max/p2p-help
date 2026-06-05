@@ -6,6 +6,7 @@
  * POST /api/ai/chat            - AI 对话
  * POST /api/chat/:bot          - 专属机器人
  */
+import { createClient } from '@supabase/supabase-js'
 import { getDB } from '../db.js'
 import { ok, err } from '../utils/response.js'
 
@@ -42,7 +43,6 @@ export async function handleUpload(request, env, pathname) {
     const rnd = Math.random().toString(36).substr(2, 6)
     const fileName = `${fileType}/${ts}_${rnd}.${ext}`
 
-    const { createClient } = await import('@supabase/supabase-js')
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY)
     const fileBuffer = await file.arrayBuffer()
 
@@ -66,7 +66,7 @@ export async function handleCommunity(request, env, pathname) {
   if (pathname === '/api/community/messages' && request.method === 'GET') {
     const db = getDB(env)
     const url = new URL(request.url)
-    const limit = parseInt(url.searchParams.get('limit') || '80')
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '30'), 50) // 默认30，上限50
     const sixMinAgo = Date.now() - 6 * 60 * 1000
 
     const { data, error } = await db.from('messages')
@@ -89,7 +89,13 @@ export async function handleCommunity(request, env, pathname) {
     // 异步清理旧消息
     db.from('messages').delete().lt('timestamp', sixMinAgo).then(() => {})
 
-    return ok(messages)
+    // 短暂缓存（5秒），减少重复请求压力
+    return new Response(JSON.stringify({ code: 200, data: messages }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=5, s-maxage=5',
+      }
+    })
   }
 
   // POST 发送消息

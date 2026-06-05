@@ -1,9 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
+// ── 复用 Supabase 客户端（Worker 全局缓存，同一实例内只创建一次）──
+let _dbCache = null
+let _dbUrl   = null
+
 export function getDB(env) {
-  return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-    auth: { persistSession: false }
-  })
+  if (!_dbCache || _dbUrl !== env.SUPABASE_URL) {
+    _dbCache = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
+      auth: { persistSession: false }
+    })
+    _dbUrl = env.SUPABASE_URL
+  }
+  return _dbCache
 }
 
 // ── 通用查询帮助 ──────────────────────────────────────────────

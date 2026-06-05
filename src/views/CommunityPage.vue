@@ -18,8 +18,9 @@ const badge = computed(() => {
   return { label: '代理', icon: '👔', color: '#2B6CB0', bg: '#EBF8FF' }
 })
 
-const messageService = getMessageService()
-const messages    = ref(messageService.getMessages())
+const messageService   = getMessageService()
+const messages         = ref(messageService.getMessages())
+const isInitialLoading = ref(messages.value.length === 0) // 首次加载骨架屏
 const inputText   = ref('')
 const messagesEnd = ref(null)
 const textareaRef = ref(null)
@@ -58,6 +59,7 @@ onMounted(() => {
     const oldLen = prevMsgLen
     messages.value = newMsgs.map(m => ({ ...m }))
     prevMsgLen = newMsgs.length
+    if (isInitialLoading.value) isInitialLoading.value = false // 首次收到数据，关闭骨架屏
     if (newMsgs.length > oldLen) {
       const last = newMsgs[newMsgs.length - 1]
       if (last.type === 'ai') startTyping(last)
@@ -231,8 +233,20 @@ function closeImagePreview() { showImagePreview.value = false }
     </div>
     <!-- 消息流 -->
     <div class="chat-messages">
+
+      <!-- 骨架屏：首次加载中 -->
+      <div v-if="isInitialLoading" class="skeleton-wrap">
+        <div v-for="i in 5" :key="i" class="skeleton-row" :class="i % 3 === 0 ? 'right' : 'left'">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-lines">
+            <div class="skeleton-line" :style="{ width: (50 + i*8) + '%' }"></div>
+            <div v-if="i % 2 === 0" class="skeleton-line" style="width:40%"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- 空状态 -->
-      <div v-if="messages.length === 0" class="welcome-area">
+      <div v-else-if="messages.length === 0" class="welcome-area">
         <div class="welcome-logo">🏪</div>
         <h2 class="welcome-title">1+1社区</h2>
         <p class="welcome-sub">点对点 · 直接打款 · 全程透明</p>
@@ -423,6 +437,15 @@ function closeImagePreview() { showImagePreview.value = false }
 .btn-activated { padding:7px 14px; background:#f0fff4; color:#07C160; border:1px solid #07C160; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; }
 .chat-messages { flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex; flex-direction:column; gap:4px; scrollbar-width:none; }
 .chat-messages::-webkit-scrollbar { display:none; }
+
+/* 骨架屏 */
+.skeleton-wrap { display:flex; flex-direction:column; gap:14px; padding:8px 0; }
+.skeleton-row { display:flex; align-items:flex-start; gap:10px; }
+.skeleton-row.right { flex-direction:row-reverse; }
+.skeleton-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; flex-shrink:0; }
+.skeleton-lines { display:flex; flex-direction:column; gap:6px; flex:1; }
+.skeleton-line { height:14px; border-radius:7px; background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
 .welcome-area { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px 24px; text-align:center; }
 .welcome-banner { width:100%; max-width:340px; border-radius:16px; overflow:hidden; margin-bottom:16px; box-shadow:0 4px 16px rgba(0,0,0,.12); }

@@ -19,7 +19,7 @@ class MessageService {
 
   async loadMessages() {
     try {
-      const res = await fetch('/api/community/messages?limit=80')
+      const res = await fetch('/api/community/messages?limit=30')
       const data = await res.json()
       if (data.code === 200) {
         this.messages = data.data
