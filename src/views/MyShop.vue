@@ -276,39 +276,24 @@ function fmtTime(ts) {
 
         <div class="team-stats">
           <div class="stat-item">
-            <span class="stat-value">{{ teamStats.directCount }}</span>
-            <span class="stat-label">直推人数</span>
+            <span class="ms-icon">👔</span>
+            <span class="stat-value">{{ teamStats.agentsJoined }}</span>
+            <span class="stat-label">直推代理</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ teamStats.totalCount }}</span>
-            <span class="stat-label">团队总人数</span>
+            <span class="ms-icon">👑</span>
+            <span class="stat-value">{{ teamStats.bossesExited }}</span>
+            <span class="stat-label">出局老板</span>
           </div>
           <div class="stat-item">
             <span class="stat-value">{{ fmt(teamStats.totalReceived) }}</span>
-            <span class="stat-label">累计收款(元)</span>
+            <span class="stat-label">累计收款</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ fmt(900 - teamStats.totalReceived > 0 ? 900 - teamStats.totalReceived : 0) }}</span>
-            <span class="stat-label">距复投还差(元)</span>
-          </div>
-        </div>
-
-        <!-- 我的模型统计 -->
-        <div class="model-stats-row">
-          <div class="ms-item">
-            <span class="ms-icon">👔</span>
-            <div class="ms-info">
-              <div class="ms-num">{{ teamStats.agentsJoined }}</div>
-              <div class="ms-label">代理进入</div>
-            </div>
-          </div>
-          <div class="ms-divider"></div>
-          <div class="ms-item">
-            <span class="ms-icon">👑</span>
-            <div class="ms-info">
-              <div class="ms-num">{{ teamStats.bossesExited }}</div>
-              <div class="ms-label">老板出局</div>
-            </div>
+            <span class="stat-value" :class="{ 'stat-done': teamStats.totalReceived >= 900 }">
+              {{ teamStats.totalReceived >= 900 ? '✓' : fmt(900 - teamStats.totalReceived) }}
+            </span>
+            <span class="stat-label">距复投还差</span>
           </div>
         </div>
 
@@ -695,9 +680,11 @@ function fmtTime(ts) {
 .ms-num { font-size:22px; font-weight:900; color:#f0a500; }
 .ms-label { font-size:11px; color:#999; margin-top:1px; }
 .ms-divider { width:1px; background:#f0f0f0; margin:0 10px; }
-.stat-item { background:#f9fafb; border-radius:10px; padding:14px; text-align:center; }
-.stat-value { display:block; font-size:24px; font-weight:800; color:#1a202c; }
-.stat-label { display:block; font-size:11px; color:#888; margin-top:4px; }
+.stat-item { background:#f9fafb; border-radius:10px; padding:14px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:4px; }
+.stat-item .ms-icon { font-size:20px; }
+.stat-value { display:block; font-size:26px; font-weight:800; color:#1a202c; line-height:1.1; }
+.stat-value.stat-done { color:#07C160; font-size:22px; }
+.stat-label { display:block; font-size:11px; color:#888; }
 .invite-locked { background:#f5f5f5; border-radius:10px; padding:14px; text-align:center; color:#999; font-size:13px; margin-top:14px; }
 .invite-box { background:#fffbea; border-radius:10px; padding:14px; text-align:center; margin-top:14px; }
 .invite-box-title { font-size:12px; color:#888; margin-bottom:8px; }
