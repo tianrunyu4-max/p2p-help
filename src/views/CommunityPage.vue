@@ -376,7 +376,7 @@ function closeImagePreview() { showImagePreview.value = false }
       </button>
       <div class="textarea-wrap">
         <textarea ref="textareaRef" v-model="inputText" class="message-textarea"
-          placeholder="@大虾 咨询互助 / @皮皮虾 / @养生虾..."
+          placeholder="@大虾 咨询互助，或直接发言..."
           rows="1" @input="autoResize"
           @keydown.enter.exact.prevent="sendMessage"
           @keydown.shift.enter.exact></textarea>

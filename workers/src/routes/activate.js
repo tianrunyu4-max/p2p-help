@@ -20,7 +20,7 @@ const JIAN_DIAN        = 80   // 见点奖：260 - 30×2(帮扶) - 10×12(平级
 const BANG_FU          = 30
 const PING_JI          = 10
 const MAX_LEVEL        = 12
-const REPURCHASE_LIMIT = 700
+const REPURCHASE_LIMIT = 900
 
 export async function handleActivate(request, env, pathname) {
   if (!pathname.startsWith('/api/activate') && !pathname.startsWith('/api/repurchase')) return null

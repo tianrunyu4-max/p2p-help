@@ -20,17 +20,17 @@ const hideNav = computed(() => {
   return p.startsWith('/admin') || p.startsWith('/participate') || p.startsWith('/payment')
 })
 
-// 复投锁定：收款满700且已激活
+// 复投锁定：收款满900且已激活
 const needRepurchase = computed(() => {
   const u = store.userInfo
   if (!u || !u.is_active) return false
-  return parseFloat(u.total_received || 0) >= 700
+  return parseFloat(u.total_received || 0) >= 900
 })
 
 // 锁定时只允许访问社区和参与页
 function handleNavClick(path) {
   if (needRepurchase.value && path !== '/community') {
-    alert('⚠️ 收款已满700元，请先复投后再使用其他功能')
+    alert('⚠️ 收款已满900元，请先复投后再使用其他功能')
     router.push('/community')
     return
   }
@@ -73,7 +73,7 @@ async function startVersionCheck() {
 
     <!-- 复投提示横幅 -->
     <div v-if="needRepurchase && !hideNav" class="repurchase-banner" @click="router.push('/community')">
-      🔄 收款已满700元，请点击"自愿参与"复投，解锁全部功能
+      🔄 收款已满900元，请点击"自愿参与"复投，解锁全部功能
     </div>
 
     <!-- 底部导航 -->

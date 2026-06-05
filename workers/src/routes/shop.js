@@ -2,7 +2,7 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const REPURCHASE_LIMIT = 700
+const REPURCHASE_LIMIT = 900
 
 export async function handleShop(request, env, pathname) {
   if (!pathname.startsWith('/api/shop') && !pathname.startsWith('/api/qr')) return null

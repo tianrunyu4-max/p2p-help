@@ -26,7 +26,7 @@ const navItems = [
 const shop = ref(null)
 const teamStats = ref({
   directCount: 0, totalCount: 0,
-  totalReceived: 0, recentTasks: [], repurchaseNeed: false, agentsJoined: 0, bossesExited: 0, repurchaseLimit: 700
+  totalReceived: 0, recentTasks: [], repurchaseNeed: false, agentsJoined: 0, bossesExited: 0, repurchaseLimit: 900
 })
 const me = computed(() => store.userInfo || {})
 const isOwner   = computed(() => me.value.role === 'owner')
@@ -117,18 +117,18 @@ function fmtTime(ts) {
           <span class="balance-unit">元</span>
         </div>
 
-        <!-- 收款进度（700复投） -->
+        <!-- 收款进度（900复投） -->
         <div class="today-earnings-banner">
           <span class="earnings-icon">📈</span>
           <span class="earnings-label">累计进度</span>
-          <span class="earnings-amount gold">{{ fmt(teamStats.totalReceived) }} / 700</span>
+          <span class="earnings-amount gold">{{ fmt(teamStats.totalReceived) }} / 900</span>
         </div>
 
         <div class="activate-guide-tip" v-if="teamStats.repurchaseNeed" style="background:#fff5f5;border-color:#fed7d7;color:#c53030">
-          🔄 累计收款已达 700 元，请重新激活参与新一轮互助！
+          🔄 累计收款已达 900 元，请重新激活参与新一轮互助！
         </div>
         <div class="activate-guide-tip" v-else>
-          💡 累计收款满 700 元后需重新激活，继续参与互助循环
+          💡 累计收款满 900 元后需重新激活，继续参与互助循环
         </div>
 
         <!-- 收款类型汇总 -->
@@ -266,7 +266,7 @@ function fmtTime(ts) {
         <div v-if="teamStats.repurchaseNeed" class="repurchase-alert">
           <div class="ra-icon">🔄</div>
           <div>
-            <div class="ra-title">收款已满700元，请复投！</div>
+            <div class="ra-title">收款已满900元，请复投！</div>
             <div class="ra-sub">复投后继续参与互助，获得新一轮收款资格</div>
           </div>
         </div>
@@ -285,7 +285,7 @@ function fmtTime(ts) {
             <span class="stat-label">累计收款(元)</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ fmt(700 - teamStats.totalReceived > 0 ? 700 - teamStats.totalReceived : 0) }}</span>
+            <span class="stat-value">{{ fmt(900 - teamStats.totalReceived > 0 ? 900 - teamStats.totalReceived : 0) }}</span>
             <span class="stat-label">距复投还差(元)</span>
           </div>
         </div>
@@ -586,7 +586,7 @@ function fmtTime(ts) {
 .balance-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
 .balance-title { font-size:15px; font-weight:600; color:#333; }
 .balance-main { display:flex; align-items:baseline; justify-content:center; gap:8px; padding:20px 0; }
-.balance-amount-large { font-size:48px; font-weight:700; color:#F7B500; line-height:1; }
+.balance-amount-large { font-size:48px; font-weight:900; color:#F7B500; line-height:1; }
 .balance-unit { font-size:16px; color:#999; }
 .today-earnings-banner {
   display:flex; align-items:center; justify-content:center; gap:12px;
@@ -596,7 +596,7 @@ function fmtTime(ts) {
 }
 .earnings-icon { font-size:22px; }
 .earnings-label { font-size:15px; font-weight:600; color:#fff; }
-.earnings-amount { font-size:20px; font-weight:700; }
+.earnings-amount { font-size:20px; font-weight:900; }
 .earnings-amount.gold { color:#fff; }
 .activate-guide-tip {
   background:linear-gradient(135deg,#FFFDE7,#FFF8CC);
@@ -611,10 +611,10 @@ function fmtTime(ts) {
 .bk-info { flex:1; }
 .bk-name { font-size:14px; font-weight:600; color:#333; }
 .bk-hint { font-size:11px; color:#999; }
-.bk-amount { font-size:15px; font-weight:700; color:#276749; }
+.bk-amount { font-size:15px; font-weight:900; color:#276749; }
 .action-buttons { display:grid; gap:10px; }
 .action-btn { padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; }
-.action-btn.activate { background:linear-gradient(135deg,#F7B500,#FFC700); color:#fff; }
+.action-btn.activate { background:linear-gradient(135deg,#F7B500,#FFC900); color:#fff; }
 .action-btn.full-width { grid-column:1/-1; }
 
 /* ══ 身份卡片 ══════════════════════════════════════════════════ */
@@ -625,7 +625,7 @@ function fmtTime(ts) {
 .identity-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
 .identity-icon { font-size:28px; }
 .identity-info { flex:1; }
-.identity-title { font-weight:700; font-size:15px; }
+.identity-title { font-weight:900; font-size:15px; }
 .identity-subtitle { font-size:12px; color:#999; margin-top:2px; }
 .identity-badge { padding:3px 10px; border-radius:20px; font-size:12px; }
 .identity-badge.landlord { background:#fffbea; color:#b7791f; }
@@ -642,7 +642,7 @@ function fmtTime(ts) {
 /* ══ 1+1 模型 ══════════════════════════════════════════════════ */
 .model-card { background:#fff; border-radius:16px; padding:16px; margin-bottom:12px; }
 .model-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-.model-title { font-size:16px; font-weight:700; }
+.model-title { font-size:16px; font-weight:900; }
 .model-badge { padding:4px 14px; border-radius:20px; font-size:13px; font-weight:600; }
 .model-badge.landlord { background:#f0fff4; color:#276749; border:1px solid #48bb78; }
 .model-badge.pending  { background:#fffbea; color:#b7791f; border:1px solid #f0a500; }
@@ -660,7 +660,7 @@ function fmtTime(ts) {
   background:radial-gradient(#f6e05e88,transparent);
   pointer-events:none;
 }
-.position-label { font-weight:700; font-size:14px; margin-bottom:10px; }
+.position-label { font-weight:900; font-size:14px; margin-bottom:10px; }
 .position-avatar { margin-bottom:8px; }
 .avatar-icon {
   font-size:52px;
@@ -687,7 +687,7 @@ function fmtTime(ts) {
 .queue-label { font-size:12px; color:#888; margin-bottom:8px; }
 .queue-dots { display:flex; gap:8px; justify-content:center; align-items:center; }
 .queue-dot { width:12px; height:12px; border-radius:50%; background:#f0a500; }
-.queue-more { font-size:12px; color:#f0a500; font-weight:700; }
+.queue-more { font-size:12px; color:#f0a500; font-weight:900; }
 .model-tips { margin-top:16px; padding-top:12px; border-top:1px solid #f0f0f0; }
 .tip-item { font-size:13px; color:#555; padding:4px 0; }
 
@@ -695,16 +695,16 @@ function fmtTime(ts) {
 .team-card, .subsidy-card, .partner-card, .hehuo-card, .quick-links {
   background:#fff; border-radius:12px; padding:16px; margin-bottom:12px;
 }
-.card-title { font-size:16px; font-weight:700; margin-bottom:14px; }
+.card-title { font-size:16px; font-weight:900; margin-bottom:14px; }
 .repurchase-alert { display:flex; align-items:center; gap:12px; background:#fff5f5; border:2px solid #e53e3e; border-radius:14px; padding:14px; margin-bottom:14px; }
 .ra-icon { font-size:28px; flex-shrink:0; }
-.ra-title { font-size:15px; font-weight:700; color:#c53030; }
+.ra-title { font-size:15px; font-weight:900; color:#c53030; }
 .ra-sub { font-size:12px; color:#e53e3e; margin-top:2px; }
 .team-stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
 .model-stats-row { display:flex; background:#fff; border-radius:14px; padding:14px; margin-bottom:14px; border:1px solid #f0f0f0; }
 .ms-item { flex:1; display:flex; align-items:center; gap:10px; justify-content:center; }
 .ms-icon { font-size:24px; }
-.ms-num { font-size:22px; font-weight:700; color:#f0a500; }
+.ms-num { font-size:22px; font-weight:900; color:#f0a500; }
 .ms-label { font-size:11px; color:#999; margin-top:1px; }
 .ms-divider { width:1px; background:#f0f0f0; margin:0 10px; }
 .stat-item { background:#f9fafb; border-radius:10px; padding:14px; text-align:center; }
@@ -719,7 +719,7 @@ function fmtTime(ts) {
 
 /* ══ 帮扶奖 ══════════════════════════════════════════════════ */
 .subsidy-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
-.subsidy-title { font-size:16px; font-weight:700; }
+.subsidy-title { font-size:16px; font-weight:900; }
 .subsidy-badge { padding:3px 10px; background:#fff0f5; color:#c44569; border-radius:20px; font-size:12px; font-weight:600; }
 .subsidy-balance { display:flex; gap:12px; margin-bottom:14px; }
 .balance-box { flex:1; background:#f9fafb; border-radius:10px; padding:12px; text-align:center; }
@@ -728,7 +728,7 @@ function fmtTime(ts) {
 .balance-percent { font-size:12px; color:#888; }
 .balance-hint { font-size:11px; color:#48bb78; margin-top:4px; }
 .subsidy-features, .partner-dividend-info { margin-top:14px; }
-.feature-title, .info-header .info-title { font-size:13px; font-weight:700; color:#333; margin-bottom:10px; display:block; }
+.feature-title, .info-header .info-title { font-size:13px; font-weight:900; color:#333; margin-bottom:10px; display:block; }
 .feature-item, .info-item { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
 .feature-icon, .info-icon { font-size:18px; flex-shrink:0; }
 .feature-name { font-size:13px; font-weight:600; color:#333; }
@@ -744,7 +744,7 @@ function fmtTime(ts) {
 .partner-badge-section.qualified { background:#f0fff4; }
 .badge-icon { font-size:28px; }
 .badge-info { flex:1; }
-.badge-title { font-size:14px; font-weight:700; }
+.badge-title { font-size:14px; font-weight:900; }
 .badge-subtitle { font-size:12px; color:#888; margin-top:2px; }
 .badge-status { padding:3px 10px; border-radius:20px; font-size:12px; }
 .badge-status.active  { background:#c6f6d5; color:#276749; }
@@ -758,12 +758,12 @@ function fmtTime(ts) {
 .progress-bar-fill.fill-green { background:#48bb78; }
 .partner-dividend-stats { margin-bottom:14px; }
 .stats-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-.stats-title { font-size:13px; font-weight:700; }
+.stats-title { font-size:13px; font-weight:900; }
 .pool-badge { padding:2px 8px; background:#e9f5fe; color:#2b6cb0; border-radius:20px; font-size:11px; }
 .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .stat-box { background:#f9fafb; border-radius:8px; padding:12px; text-align:center; }
 .stat-box .stat-label { font-size:11px; color:#888; }
-.stat-box .stat-value { font-size:18px; font-weight:700; color:#1a202c; margin-top:4px; }
+.stat-box .stat-value { font-size:18px; font-weight:900; color:#1a202c; margin-top:4px; }
 .stat-box .stat-value.gold { color:#c05621; }
 .info-list { display:flex; flex-direction:column; gap:8px; }
 
@@ -775,23 +775,23 @@ function fmtTime(ts) {
 .hehuo-badge-section.qualified { background:#fffbea; }
 .hehuo-badge-icon { font-size:28px; }
 .hehuo-badge-info { flex:1; }
-.hehuo-badge-title { font-size:14px; font-weight:700; }
+.hehuo-badge-title { font-size:14px; font-weight:900; }
 .hehuo-badge-sub { font-size:12px; color:#888; margin-top:2px; }
 .hehuo-badge-status { padding:3px 10px; border-radius:20px; font-size:12px; }
 .hehuo-badge-status.active  { background:#fffbea; color:#b7791f; }
 .hehuo-badge-status.pending { background:#f5f5f5; color:#888; }
 .hehuo-progress-section { margin-bottom:14px; }
-.hehuo-progress-title { font-size:13px; font-weight:700; margin-bottom:10px; }
+.hehuo-progress-title { font-size:13px; font-weight:900; margin-bottom:10px; }
 .hehuo-progress-bar-wrap { height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden; }
 .hehuo-progress-bar { height:100%; background:#F7B500; border-radius:3px; transition:width .4s; }
 .hehuo-progress-hint { font-size:12px; color:#888; margin-top:6px; }
 .hehuo-rights { margin-top:14px; padding-top:12px; border-top:1px solid #f0f0f0; }
-.hehuo-rights-title { font-size:13px; font-weight:700; margin-bottom:8px; }
+.hehuo-rights-title { font-size:13px; font-weight:900; margin-bottom:8px; }
 .hehuo-right-item { font-size:12px; color:#555; padding:3px 0; }
 
 /* ══ 收益/结算 ══════════════════════════════════════════════════ */
 .earnings-summary-row { display:flex; justify-content:space-between; font-size:14px; color:#555; margin-bottom:12px; padding:10px; background:#f9fafb; border-radius:8px; }
-.gold-text { font-weight:700; color:#c05621; }
+.gold-text { font-weight:900; color:#c05621; }
 .settle-type-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
 .settle-type-card { border-radius:10px; padding:12px; text-align:center; }
 .jiandian-card { background:#fffbea; }
@@ -811,6 +811,6 @@ function fmtTime(ts) {
 .task-type-badge.pingji   { background:#ebf8ff; color:#2b6cb0; }
 .task-label  { font-size:13px; color:#333; }
 .task-time   { font-size:11px; color:#aaa; margin-top:2px; }
-.task-amount { font-size:15px; font-weight:700; color:#276749; }
+.task-amount { font-size:15px; font-weight:900; color:#276749; }
 .empty-tip   { text-align:center; color:#bbb; padding:30px; font-size:14px; }
 </style>
