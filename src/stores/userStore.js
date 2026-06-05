@@ -62,6 +62,12 @@ export const useUserStore = defineStore('user', () => {
     } catch {}
   }
 
+  // 主动刷新用户状态（管理员激活后前端立即更新）
+  async function refreshUser() {
+    if (!token.value) return
+    await _silentRefresh()
+  }
+
   function logout() {
     token.value = ''
     userInfo.value = null
@@ -78,6 +84,6 @@ export const useUserStore = defineStore('user', () => {
     token, userInfo, localId,
     isLoggedIn, isActivated, hasReferrer, isExited,
     userId, inviteCode,
-    setToken, setUserInfo, autoInit, logout,
+    setToken, setUserInfo, autoInit, logout, refreshUser,
   }
 })

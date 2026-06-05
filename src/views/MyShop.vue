@@ -60,7 +60,10 @@ async function refreshAll() {
   isRefreshing.value = false
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  store.refreshUser()  // 进入店铺页立即刷新用户状态
+  loadAll()
+})
 watch(() => store.userInfo, loadAll)
 
 // ── 工具 ──────────────────────────────────────────────────────────

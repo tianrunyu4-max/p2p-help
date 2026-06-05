@@ -49,8 +49,9 @@ const SHRIMP_BOTS = [
   { keywords: ['@彩球','@选号'],     bot: 'lottery',  type: 'lottery',  fallback: '彩球博士正在推演 🎱' },
 ]
 
-let unsubscribe  = null
-let prevMsgLen   = 0
+let unsubscribe    = null
+let prevMsgLen     = 0
+let userPollTimer  = null   // 用户状态轮询（管理员激活后自动更新勋章）
 
 onMounted(() => {
   messages.value = messageService.getMessages()
@@ -59,7 +60,7 @@ onMounted(() => {
     const oldLen = prevMsgLen
     messages.value = newMsgs.map(m => ({ ...m }))
     prevMsgLen = newMsgs.length
-    if (isInitialLoading.value) isInitialLoading.value = false // 首次收到数据，关闭骨架屏
+    if (isInitialLoading.value) isInitialLoading.value = false
     if (newMsgs.length > oldLen) {
       const last = newMsgs[newMsgs.length - 1]
       if (last.type === 'ai') startTyping(last)
@@ -68,11 +69,19 @@ onMounted(() => {
   })
   scrollToBottom()
   messageService.startAutoBroadcast()
+
+  // 立即刷新一次用户状态（管理员激活后无需重启APP即可看到勋章）
+  store.refreshUser()
+  // 每30秒轮询一次，未激活用户被内排后自动更新
+  userPollTimer = setInterval(() => {
+    if (!store.isActivated) store.refreshUser()
+  }, 30000)
 })
 
 onUnmounted(() => {
   if (unsubscribe) unsubscribe()
   if (typingTimer) clearInterval(typingTimer)
+  if (userPollTimer) clearInterval(userPollTimer)
   messageService.stopAutoBroadcast()
 })
 
