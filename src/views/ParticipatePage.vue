@@ -135,10 +135,10 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
             <span class="bi-icon">📊</span>
             <div>
               <div class="bi-name">平级奖</div>
-              <div class="bi-desc">邀请链向上12代</div>
+              <div class="bi-desc">沿邀请链平级分配</div>
             </div>
           </div>
-          <div class="bi-amount">¥10 × 12</div>
+          <div class="bi-amount">¥120</div>
         </div>
         <div class="breakdown-total">
           <span>合计</span>
