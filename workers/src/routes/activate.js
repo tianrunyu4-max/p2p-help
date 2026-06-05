@@ -1,10 +1,10 @@
 /**
  * activate.js — 激活匹配核心算法
  *
- * 激活金 230元，全部 P2P 点对点，同时触发：
- *   见点    70   → 老板（永久）
+ * 激活金 260元，全部 P2P 点对点，同时触发：
+ *   见点    80   → 老板（永久）
  *   帮扶    30×2 → 老板的2个直推中已出局者（同时触发）；未出局→管理员节点代收
- *   平级    10×10→ 邀请链往上10层
+ *   平级    10×12→ 邀请链往上12层
  *
  * 滑落+贡献逻辑（对标 task-wall）：
  *   没有滑落 → contribution_slot='first'  → 第1个邀请贡献到原模型
@@ -15,11 +15,11 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const ACTIVATE_AMOUNT  = 230
-const JIAN_DIAN        = 70
+const ACTIVATE_AMOUNT  = 260
+const JIAN_DIAN        = 80   // 见点奖：260 - 30×2(帮扶) - 10×12(平级) = 80
 const BANG_FU          = 30
 const PING_JI          = 10
-const MAX_LEVEL        = 10
+const MAX_LEVEL        = 12
 const REPURCHASE_LIMIT = 700
 
 export async function handleActivate(request, env, pathname) {

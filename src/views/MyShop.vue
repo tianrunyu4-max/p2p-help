@@ -378,8 +378,8 @@ function fmtTime(ts) {
         <div class="partner-badge-section" :class="{ qualified: teamStats.directCount >= 1 }">
           <div class="badge-icon">{{ teamStats.directCount >= 1 ? '📊' : '🔒' }}</div>
           <div class="badge-info">
-            <div class="badge-title">平级奖 · {{ teamStats.directCount >= 1 ? '已解锁10层' : '邀请1人解锁10层' }}</div>
-            <div class="badge-subtitle">{{ teamStats.directCount >= 1 ? '每人激活可收取10层平级奖，每层10元' : '邀请1位朋友激活后，解锁完整10层平级网体' }}</div>
+            <div class="badge-title">平级奖 · {{ teamStats.directCount >= 1 ? '已解锁12层' : '邀请1人解锁12层' }}</div>
+            <div class="badge-subtitle">{{ teamStats.directCount >= 1 ? '每人激活可收取12层平级奖，每层10元' : '邀请1位朋友激活后，解锁完整12层平级网体' }}</div>
           </div>
           <span class="badge-status" :class="teamStats.directCount >= 1 ? 'active' : 'pending'">
             {{ teamStats.directCount >= 1 ? '✅ 已达标' : '⏳ 未达标' }}
@@ -389,7 +389,7 @@ function fmtTime(ts) {
         <div class="partner-progress">
           <div class="progress-item">
             <div class="progress-header">
-              <span class="progress-label">邀请进度（解锁10层）</span>
+              <span class="progress-label">邀请进度（解锁12层）</span>
               <span class="progress-value">{{ Math.min(teamStats.directCount, 1) }}/1 人</span>
             </div>
             <div class="progress-bar-wrapper">
@@ -404,7 +404,7 @@ function fmtTime(ts) {
         <div class="partner-dividend-stats" v-if="pingJiTasks.length > 0">
           <div class="stats-header">
             <span class="stats-title">平级奖统计</span>
-            <span class="pool-badge">10元/层 × 10层</span>
+            <span class="pool-badge">10元/层 × 12层</span>
           </div>
           <div class="stats-grid">
             <div class="stat-box">
@@ -421,9 +421,9 @@ function fmtTime(ts) {
         <div class="partner-dividend-info">
           <div class="info-header"><span class="info-title">📋 平级奖规则</span></div>
           <div class="info-list">
-            <div class="info-item"><span class="info-icon">🔗</span><span class="info-text">新人激活时，按邀请链向上追溯 <strong>10层</strong>，每层收10元</span></div>
-            <div class="info-item"><span class="info-icon">🎯</span><span class="info-text">邀请码用了1次：解锁完整 <strong>10层</strong>；未邀请：只拿 <strong>10层</strong></span></div>
-            <div class="info-item"><span class="info-icon">🔄</span><span class="info-text">不足10层时，剩余归已邀请1人的上位紧缩继承</span></div>
+            <div class="info-item"><span class="info-icon">🔗</span><span class="info-text">新人激活时，按邀请链向上追溯 <strong>12层</strong>，每层收10元</span></div>
+            <div class="info-item"><span class="info-icon">🎯</span><span class="info-text">邀请码用了1次：解锁完整 <strong>12层</strong>；未邀请：只拿 <strong>12层</strong></span></div>
+            <div class="info-item"><span class="info-icon">🔄</span><span class="info-text">不足12层时，剩余归已邀请1人的上位紧缩继承</span></div>
             <div class="info-item"><span class="info-icon">💵</span><span class="info-text">全程点对点打款，新人扫码直接付给平级收款人</span></div>
           </div>
         </div>
@@ -465,7 +465,7 @@ function fmtTime(ts) {
           <div class="hehuo-rights-title">🎖️ 老板权益</div>
           <div class="hehuo-right-item">✅ 永久接收见点奖（每人激活付70元）</div>
           <div class="hehuo-right-item">✅ 接收帮扶奖（2位出局直推各30元）</div>
-          <div class="hehuo-right-item">✅ 收取平级奖（10层×10元）</div>
+          <div class="hehuo-right-item">✅ 收取平级奖（12层×10元）</div>
           <div class="hehuo-right-item">✅ 邀请码可再次使用（出局后重置）</div>
         </div>
       </div>

@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 
-const tasks   = ref([])
-const loading = ref(true)
+const tasks      = ref([])
+const loading    = ref(true)
+const confirming = ref({})   // { [taskId]: true } 防重复确认
+const disputing  = ref({})   // { [taskId]: true } 防重复申诉
 
 onMounted(async () => {
   try {
@@ -13,22 +15,30 @@ onMounted(async () => {
 })
 
 async function confirm(taskId) {
+  if (confirming.value[taskId]) return  // 已在处理中，直接拦截
+  confirming.value[taskId] = true
   try {
     await axios.post(`/api/orders/confirm/${taskId}`)
     const t = tasks.value.find(t => t.id === taskId)
     if (t) t.status = 'confirmed'
   } catch (e) {
     alert(e.response?.data?.message || '确认失败')
+  } finally {
+    confirming.value[taskId] = false
   }
 }
 
 async function dispute(taskId) {
+  if (disputing.value[taskId]) return  // 已在处理中，直接拦截
+  disputing.value[taskId] = true
   try {
     await axios.post(`/api/orders/dispute/${taskId}`)
     const t = tasks.value.find(t => t.id === taskId)
     if (t) t.status = 'ai_review'
   } catch (e) {
     alert('操作失败')
+  } finally {
+    disputing.value[taskId] = false
   }
 }
 
@@ -66,8 +76,16 @@ function timeLeft(deadline) {
         <div class="task-footer">
           <span class="timer">⏱ {{ timeLeft(task.deadline) }}</span>
           <div class="actions">
-            <button class="btn-dispute" @click="dispute(task.id)">有问题</button>
-            <button class="btn-confirm" @click="confirm(task.id)">确认收款</button>
+            <button
+              class="btn-dispute"
+              :disabled="disputing[task.id] || confirming[task.id]"
+              @click="dispute(task.id)"
+            >{{ disputing[task.id] ? '处理中...' : '有问题' }}</button>
+            <button
+              class="btn-confirm"
+              :disabled="confirming[task.id] || disputing[task.id]"
+              @click="confirm(task.id)"
+            >{{ confirming[task.id] ? '确认中...' : '确认收款' }}</button>
           </div>
         </div>
       </div>
@@ -92,4 +110,5 @@ function timeLeft(deadline) {
 .actions { display: flex; gap: 8px; }
 .btn-dispute { padding: 8px 14px; border: 1px solid #e53e3e; border-radius: 8px; background: #fff; color: #e53e3e; font-size: 13px; cursor: pointer; }
 .btn-confirm { padding: 8px 14px; background: #48bb78; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-dispute:disabled, .btn-confirm:disabled { opacity: .5; cursor: not-allowed; }
 </style>

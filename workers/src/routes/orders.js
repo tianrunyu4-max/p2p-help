@@ -71,41 +71,58 @@ async function getTask(db, taskId, userId) {
 }
 
 // ── 上传打款截图 ──────────────────────────────────────────────
+// 接受 JSON: { taskId, screenshotUrl }（前端已先上传至 /api/upload 获取URL）
 async function uploadScreenshot(request, db, env, userId) {
-  const formData = await request.formData()
-  const file     = formData.get('screenshot')
-  const taskId   = formData.get('taskId')
+  let body
+  try { body = await request.json() } catch { return err('请求格式错误') }
 
-  if (!file || !taskId) return err('参数缺失')
+  const { taskId, screenshotUrl } = body
+  if (!taskId || !screenshotUrl) return err('参数缺失')
+
+  // ── 安全：校验截图URL来源必须是我们自己的 Supabase Storage ──
+  const allowedOrigins = [
+    'supabase.co/storage',
+    'supabase.in/storage',
+  ]
+  const urlLower = screenshotUrl.toLowerCase()
+  if (!allowedOrigins.some(o => urlLower.includes(o))) {
+    return err('截图来源不合法，请通过系统上传')
+  }
+
+  // ── 安全：校验截图URL路径必须包含 p2p-media（我们的 bucket）──
+  if (!urlLower.includes('p2p-media')) {
+    return err('截图来源不合法')
+  }
 
   // 验证任务归属
   const { data: task } = await db.from('payment_tasks').select('*').eq('id', taskId).single()
   if (!task) return err('任务不存在')
   if (task.payer_id !== userId) return err('无权操作')
-  if (task.status !== 'pending') return err('该任务状态不允许上传截图')
 
-  // 上传图片到 Supabase Storage
-  const ext = file.name?.split('.').pop() || 'jpg'
-  const path = `screenshots/${taskId}-${Date.now()}.${ext}`
-  const arrayBuf = await file.arrayBuffer()
+  // ── 安全：防重复提交（状态非 pending 则拒绝）──
+  if (task.status !== 'pending') {
+    return err('该任务截图已上传或已完成，请勿重复提交')
+  }
 
-  const { data: uploaded, error: upErr } = await db.storage
-    .from('p2p-images')
-    .upload(path, arrayBuf, { contentType: file.type || 'image/jpeg', upsert: true })
-
-  if (upErr) return err('图片上传失败：' + upErr.message)
-
-  const { data: { publicUrl } } = db.storage.from('p2p-images').getPublicUrl(path)
+  // ── 安全：防止同一截图URL被多个任务复用（截图复用作弊）──
+  const { data: existingUse } = await db.from('payment_tasks')
+    .select('id')
+    .eq('screenshot_url', screenshotUrl)
+    .neq('id', taskId)
+    .limit(1)
+  if (existingUse?.length > 0) {
+    return err('该截图已被其他任务使用，请上传本次付款的真实截图')
+  }
 
   // 更新任务状态，设置30分钟截止
   const deadline = new Date(Date.now() + CONFIRM_TIMEOUT_MS).toISOString()
   await db.from('payment_tasks').update({
     status:         'screenshot_uploaded',
-    screenshot_url: publicUrl,
+    screenshot_url: screenshotUrl,
     deadline,
   }).eq('id', taskId)
 
-  return ok({ url: publicUrl })
+  return ok({ url: screenshotUrl })
 }
 
 // ── 收款方确认收款 ────────────────────────────────────────────
@@ -117,10 +134,15 @@ async function confirmTask(db, taskId, userId) {
     return err('该任务当前状态无法确认')
   }
 
-  await db.from('payment_tasks').update({
-    status:       'confirmed',
-    confirmed_at: new Date().toISOString(),
-  }).eq('id', taskId)
+  // ── CAS 原子更新：只有当前状态匹配才能确认，防止并发重复确认 ──
+  const { data: updated, error: casErr } = await db.from('payment_tasks')
+    .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
+    .eq('id', taskId)
+    .eq('status', task.status)   // CAS：状态未变才成功
+    .select('id')
+  if (casErr || !updated?.length) {
+    return err('操作冲突，请刷新后重试')
+  }
 
   // 更新收款方的累计收款
   const receiver = await getUser(db, userId)

@@ -29,8 +29,13 @@ export async function handleUpload(request, env, pathname) {
     }
     if (!allowed[fileType]?.includes(file.type)) return err('不支持的文件类型: ' + file.type)
 
-    const maxSize = { avatar: 2*1024*1024, image: 10*1024*1024, video: 50*1024*1024 }
+    const maxSize = { avatar: 2*1024*1024, image: 15*1024*1024, video: 50*1024*1024 }
     if (file.size > maxSize[fileType]) return err(`文件过大，最大 ${maxSize[fileType]/1024/1024}MB`)
+
+    // 截图最小 30KB — 防止上传空白图、极小假图作弊
+    if (fileType === 'image' && file.size < 30 * 1024) {
+      return err('截图文件过小（至少30KB），请上传真实付款截图')
+    }
 
     const ext = file.name.split('.').pop() || 'jpg'
     const ts = Date.now()
