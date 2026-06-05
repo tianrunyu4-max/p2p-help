@@ -337,7 +337,7 @@ export async function onAllTasksConfirmed(db, orderId) {
 }
 
 // ── 店铺旋转（含滑落+贡献位设置）────────────────────────────
-async function rotateIntoShop(db, newUser) {
+export async function rotateIntoShop(db, newUser) {
   if (!newUser.referrer_id) return
   const referrer = await getUser(db, newUser.referrer_id)
   if (!referrer) return

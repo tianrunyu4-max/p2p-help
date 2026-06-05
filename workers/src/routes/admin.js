@@ -5,6 +5,7 @@
 
 import { getDB, getUser } from '../db.js'
 import { ok, err } from '../utils/response.js'
+import { rotateIntoShop } from './activate.js'
 
 async function isAdmin(request, env) {
   const token = request.headers.get('X-Admin-Token') || ''
@@ -248,18 +249,42 @@ export async function handleAdmin(request, env, pathname) {
       await db.from('users').update({ invite_used: (referrer.invite_used || 0) + 1 }).eq('id', referrerId)
     }
 
-    const updateData = { is_active: true, is_exited: false, role: 'owner' }
+    // 先写入 referrer_id，再激活（rotateIntoShop 需要读 referrer_id）
+    const updateData = { is_active: true, is_exited: false }
     if (referrerId) updateData.referrer_id = referrerId
 
+    // 根用户（无推荐人）→ 直接设为老板
+    if (!referrerId) updateData.role = 'owner'
+
     await db.from('users').update(updateData).eq('id', target.id)
+
+    // 有推荐人 → 执行店铺旋转（分配代理位，与正常激活流程一致）
+    if (referrerId) {
+      const freshUser = await getUser(db, target.id)
+      await rotateIntoShop(db, freshUser)
+    }
 
     return ok({
       user_no: target.user_no,
       referrer_no: referrerNo_out,
       message: referrerNo_out
-        ? `✅ #${userNo} 已激活为代理，推荐人：#${referrerNo_out}`
+        ? `✅ #${userNo} 已激活并进入 #${referrerNo_out} 的店铺模型`
         : `✅ #${userNo} 已激活为平台第一人（根用户，无推荐人）`
     })
+  }
+
+  // POST /api/admin/fix-shop/:userNo — 补做店铺旋转（修复手动激活但未进店的用户）
+  const fixShopMatch = pathname.match(/^\/api\/admin\/fix-shop\/(.+)$/)
+  if (fixShopMatch && request.method === 'POST') {
+    const { data: u } = await db.from('users')
+      .select('*').eq('user_no', fixShopMatch[1]).maybeSingle()
+    if (!u) return err('用户不存在')
+    if (!u.is_active) return err('用户未激活')
+    if (!u.referrer_id) return err('根用户无需旋转')
+    if (u.current_shop_id) return err(`用户已在店铺中（shop: ${u.current_shop_id}），无需补做`)
+    await rotateIntoShop(db, u)
+    const fresh = await getUser(db, u.id)
+    return ok({ user_no: u.user_no, role: fresh.role, current_shop_id: fresh.current_shop_id, message: '✅ 店铺旋转完成' })
   }
 
   // GET /api/admin/tree/:userId — 查看用户下的邀请树（3层）
