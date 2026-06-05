@@ -68,7 +68,12 @@ async function startVersionCheck() {
   <div class="app-wrap">
     <!-- 页面内容区（flex:1 撑满剩余空间） -->
     <div class="page-content">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <!-- 社区/店铺页保活，切标签不重建组件，避免重复加载 -->
+        <keep-alive :include="['CommunityPage', 'MyShop', 'SubsidyPage', 'PendingConfirm']">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </div>
 
     <!-- 复投提示横幅 -->

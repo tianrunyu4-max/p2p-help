@@ -9,12 +9,36 @@ export function getMessageService() {
   return instance
 }
 
+const CACHE_KEY = 'community_msgs_cache'
+const CACHE_TTL = 5 * 60 * 1000  // 5分钟缓存有效期
+
 class MessageService {
   constructor() {
     this.messages = []
     this.listeners = []
     this.pollTimer = null
+    // 立即从 localStorage 恢复上次消息（让社区秒显示）
+    this._loadFromCache()
+    // 再去后端拉最新
     this.loadMessages()
+  }
+
+  _loadFromCache() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY)
+      if (!raw) return
+      const { ts, data } = JSON.parse(raw)
+      if (Date.now() - ts < CACHE_TTL && data?.length) {
+        this.messages = data
+        this.notifyListeners()
+      }
+    } catch {}
+  }
+
+  _saveToCache(msgs) {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: msgs }))
+    } catch {}
   }
 
   async loadMessages() {
@@ -23,6 +47,7 @@ class MessageService {
       const data = await res.json()
       if (data.code === 200) {
         this.messages = data.data
+        this._saveToCache(data.data)  // 存入缓存
         this.notifyListeners()
       }
     } catch (e) {}

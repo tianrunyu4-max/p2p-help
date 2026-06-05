@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore.js'
 import axios from 'axios'
@@ -61,7 +61,12 @@ async function refreshAll() {
 }
 
 onMounted(() => {
-  store.refreshUser()  // 进入店铺页立即刷新用户状态
+  store.refreshUser()
+  loadAll()
+})
+// keep-alive 切回店铺时刷新数据
+onActivated(() => {
+  store.refreshUser()
   loadAll()
 })
 watch(() => store.userInfo, loadAll)

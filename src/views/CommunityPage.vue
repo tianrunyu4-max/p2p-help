@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/userStore.js'
 import { getMessageService } from '../services/messageService.js'
@@ -76,6 +76,12 @@ onMounted(() => {
   userPollTimer = setInterval(() => {
     if (!store.isActivated) store.refreshUser()
   }, 30000)
+})
+
+// keep-alive 切回社区时：滚到底部 + 静默刷新用户状态
+onActivated(() => {
+  scrollToBottom()
+  store.refreshUser()
 })
 
 onUnmounted(() => {
