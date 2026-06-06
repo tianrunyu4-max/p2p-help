@@ -226,12 +226,14 @@ async function resolveShopWithContribution(db, newUserId, referrer) {
 }
 
 // ── 检查是否需要贡献到原模型 ──────────────────────────────────
+// 无滑落(first)：第1个直推贡献（invite_used=0时触发）
+// 有滑落(fifth)：第2个直推贡献（invite_used=1时触发）
 function checkContribution(user) {
   if (user.has_contributed) return false
   if (!user.contribution_slot) return false
   const pushCount = user.invite_used || 0
-  if (user.contribution_slot === 'first' && pushCount === 1) return true
-  if (user.contribution_slot === 'fifth' && pushCount === 2) return true
+  if (user.contribution_slot === 'first' && pushCount === 0) return true
+  if (user.contribution_slot === 'fifth' && pushCount === 1) return true
   return false
 }
 
