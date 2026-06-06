@@ -1,9 +1,8 @@
 {
   "appId": "uk.airairdrop.p2p",
-  "appName": "1+1",
+  "appName": "1+1互助",
   "webDir": "dist",
-  "server": {
-    "url": "https://p2p.ai-airdrop.uk",
-    "cleartext": false
+  "android": {
+    "allowMixedContent": false
   }
 }
