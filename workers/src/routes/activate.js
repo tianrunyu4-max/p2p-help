@@ -395,6 +395,11 @@ export async function rotateIntoShop(db, newUser) {
 
       // 新用户成为新代理
       await db.from('users').update({ role: 'manager', current_shop_id: shopId }).eq('id', newUser.id)
+
+      // ✅ 旋转计数 +1（修复 agentsJoined/bossesExited 统计）
+      await db.from('shops').update({
+        rotation_count: (shop.rotation_count || 0) + 1
+      }).eq('id', shopId)
     }
   }
 }

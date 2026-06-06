@@ -273,6 +273,14 @@ export async function handleAdmin(request, env, pathname) {
     })
   }
 
+  // POST /api/admin/fix-rotation-count — 修复店铺rotation_count历史数据
+  if (pathname === '/api/admin/fix-rotation-count' && request.method === 'POST') {
+    const { shopId, rotationCount } = await request.json()
+    if (!shopId) return err('shopId 必填')
+    await db.from('shops').update({ rotation_count: rotationCount || 0 }).eq('id', shopId)
+    return ok({ shopId, rotation_count: rotationCount, message: '✅ rotation_count 已修复' })
+  }
+
   // POST /api/admin/fix-shop/:userNo — 补做店铺旋转（修复手动激活但未进店的用户）
   const fixShopMatch = pathname.match(/^\/api\/admin\/fix-shop\/(.+)$/)
   if (fixShopMatch && request.method === 'POST') {

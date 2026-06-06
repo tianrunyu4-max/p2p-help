@@ -63,14 +63,10 @@ export async function handleShop(request, env, pathname) {
     if (me.current_shop_id) {
       const shop = await getShop(db, me.current_shop_id)
       if (shop) {
-        // 进入总数 = rotation_count（每次旋转=一个代理进入）+ 当前代理（若存在）
-        agentsJoined = (shop.rotation_count || 0) + (shop.slota_tenant_id ? 1 : 0)
-        // 出局老板 = 直推中 is_exited = true 的人
-        const { count: exitedCount } = await db.from('users')
-          .select('*', { count: 'exact', head: true })
-          .eq('referrer_id', payload.userId)
-          .eq('is_exited', true)
-        bossesExited = exitedCount || 0
+        // 出局次数 = rotation_count（每次代理出局旋转时+1）
+        bossesExited = shop.rotation_count || 0
+        // 进入总数 = 已出局次数 + 当前代理（若存在则+1）
+        agentsJoined = bossesExited + (shop.slota_tenant_id ? 1 : 0)
       }
     }
 
