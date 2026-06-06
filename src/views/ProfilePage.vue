@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useUserStore } from '../stores/userStore.js'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { apiUrl } from '../utils/apiBase.js'
 
 const store   = useUserStore()
 const router  = useRouter()
@@ -60,20 +61,26 @@ async function doRecover() {
   recoverLoading.value = true
   recoverMsg.value = ''
   try {
-    const res = await axios.post('/api/auth/recover', {
-      userId:         recoverUserId.value.trim(),
-      securityAnswer: recoverAnswer.value.trim(),
+    const res = await fetch(apiUrl('/api/auth/recover'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId:         recoverUserId.value.trim(),
+        securityAnswer: recoverAnswer.value.trim(),
+      })
     })
-    if (res.data.code === 200) {
-      store.setToken(res.data.data.token)
-      store.setUserInfo(res.data.data.user)
-      // 同步本地ID
-      localStorage.setItem('p2p_local_id', res.data.data.user.user_no)
-      recoverMsg.value = `✅ 找回成功！欢迎回来 #${res.data.data.user.user_no}`
+    const data = await res.json()
+    if (data.code === 200) {
+      store.setToken(data.data.token)
+      store.setUserInfo(data.data.user)
+      localStorage.setItem('p2p_local_id', data.data.user.user_no)
+      recoverMsg.value = `✅ 找回成功！欢迎回来 #${data.data.user.user_no}`
       setTimeout(() => { showRecover.value = false; router.push('/') }, 1500)
+    } else {
+      recoverMsg.value = '❌ ' + (data.message || '找回失败，请检查ID和答案')
     }
   } catch (e) {
-    recoverMsg.value = '❌ ' + (e.response?.data?.message || '找回失败，请检查ID和答案')
+    recoverMsg.value = '❌ 网络错误，请重试'
   } finally { recoverLoading.value = false }
 }
 </script>
