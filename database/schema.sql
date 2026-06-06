@@ -29,6 +29,7 @@ CREATE TABLE shops (
   id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   slot1_owner_id  UUID REFERENCES users(id) NOT NULL, -- 店主（永久）
   slota_tenant_id UUID REFERENCES users(id),          -- 店长（可为null）
+  rotation_count  INT DEFAULT 0,                      -- 累计旋转次数（代理出局+1）
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
