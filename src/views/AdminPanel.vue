@@ -35,18 +35,62 @@ function handleLogout() {
 }
 
 // ── 数据 ──────────────────────────────────────
-const tab     = ref('nodes')
+const tab     = ref('pingjii')
 const orders  = ref([])
 const users   = ref([])
 const nodes   = ref([])
 const loading = ref(false)
 
-// 节点管理
+// 旧内排节点（保留但不再主用）
 const creatingNode = ref(false)
 const nodeMsg      = ref('')
 const setNodeUserId  = ref('')
 const setNodeOrder   = ref(1)
 const setNodeLoading = ref(false)
+
+// ── 平级节点 & 提现队列 ────────────────────────
+const pingjiiNodes     = ref([])
+const pingjiiQueue     = ref({ waiting: [], matched: [], completed: [] })
+const pingjiiLoading   = ref(false)
+const pingjiiMsg       = ref('')
+const creatingPingjii  = ref(false)
+
+async function loadPingjii() {
+  pingjiiLoading.value = true
+  try {
+    const [nodesRes, queueRes] = await Promise.all([
+      axios.get('/api/admin/pingjii-nodes'),
+      axios.get('/api/pingjii/admin/queue'),
+    ])
+    pingjiiNodes.value = nodesRes.data.data || []
+    pingjiiQueue.value = queueRes.data.data || { waiting: [], matched: [], completed: [] }
+  } catch (e) {
+    if (e.response?.status === 403) handleLogout()
+  } finally { pingjiiLoading.value = false }
+}
+
+async function createPingjiiNode(order) {
+  creatingPingjii.value = true
+  pingjiiMsg.value = ''
+  try {
+    const res = await axios.post('/api/admin/create-pingjii-node', { nodeOrder: order })
+    pingjiiMsg.value = res.data.data.message
+    await loadPingjii()
+  } catch (e) {
+    pingjiiMsg.value = '❌ ' + (e.response?.data?.message || '创建失败')
+  } finally { creatingPingjii.value = false }
+}
+
+async function completePingjiiWithdraw(id) {
+  if (!confirm('确认已打款给该用户？')) return
+  try {
+    await axios.post(`/api/pingjii/admin/complete/${id}`)
+    pingjiiMsg.value = '✅ 已标记完成'
+    await loadPingjii()
+  } catch (e) {
+    pingjiiMsg.value = '❌ 操作失败'
+  }
+}
 
 if (adminToken.value) {
   axios.defaults.headers.common['X-Admin-Token'] = adminToken.value
@@ -82,7 +126,7 @@ async function loadNodes() {
   } finally { loading.value = false }
 }
 
-onMounted(() => { if (adminToken.value) loadNodes() })
+onMounted(() => { if (adminToken.value) loadPingjii() })
 
 async function forceComplete(taskId) {
   if (!confirm('确认强制完成此任务？')) return
@@ -241,6 +285,7 @@ function switchTab(t) {
   if (t === 'users')   loadUsers()
   if (t === 'nodes')   loadNodes()
   if (t === 'subsidy') loadSubsidy()
+  if (t === 'pingjii') loadPingjii()
 }
 </script>
 
@@ -277,7 +322,7 @@ function switchTab(t) {
       </div>
 
       <div class="tabs">
-        <button :class="['tab', tab==='nodes'?'active':'']"   @click="switchTab('nodes')">🔗 内排节点</button>
+        <button :class="['tab', tab==='pingjii'?'active':'']"  @click="switchTab('pingjii')">📊 平级节点</button>
         <button :class="['tab', tab==='subsidy'?'active':'']" @click="switchTab('subsidy')">💰 生活补贴</button>
         <button :class="['tab', tab==='orders'?'active':'']"  @click="switchTab('orders')">订单管理</button>
         <button :class="['tab', tab==='users'?'active':'']"   @click="switchTab('users')">用户管理</button>
@@ -285,7 +330,63 @@ function switchTab(t) {
 
       <div v-if="loading" class="loading">加载中...</div>
 
-      <!-- 内排节点管理 -->
+      <!-- 平级节点管理 -->
+      <template v-if="tab==='pingjii' && !pingjiiLoading">
+        <!-- 2个平级节点账号 -->
+        <div class="pj-section">
+          <div class="pj-title">📊 平级节点账号（2个）</div>
+          <div class="pj-sub">新用户激活时，平级奖¥60×2打给这2个节点，节点自动给链上用户记余额</div>
+          <div class="pj-nodes">
+            <div v-for="order in [1,2]" :key="order" class="pj-node-slot">
+              <div class="pj-node-order">节点{{ order }}</div>
+              <template v-if="pingjiiNodes.find(n=>n.pingjii_node_order===order)">
+                <div class="pj-node-id">#{{ pingjiiNodes.find(n=>n.pingjii_node_order===order).user_no }}</div>
+                <div class="pj-node-qr">
+                  <span :class="pingjiiNodes.find(n=>n.pingjii_node_order===order).wechat_qr ? 'qr-ok' : 'qr-no'">
+                    微信{{ pingjiiNodes.find(n=>n.pingjii_node_order===order).wechat_qr ? '✅' : '❌' }}
+                  </span>
+                  <span :class="pingjiiNodes.find(n=>n.pingjii_node_order===order).alipay_qr ? 'qr-ok' : 'qr-no'">
+                    支付宝{{ pingjiiNodes.find(n=>n.pingjii_node_order===order).alipay_qr ? '✅' : '❌' }}
+                  </span>
+                </div>
+                <div class="pj-node-stat">累计收款 ¥{{ pingjiiNodes.find(n=>n.pingjii_node_order===order).total_received }}</div>
+              </template>
+              <button v-else class="pj-btn-create" :disabled="creatingPingjii"
+                @click="createPingjiiNode(order)">
+                {{ creatingPingjii ? '创建中...' : '+ 创建节点' + order }}
+              </button>
+            </div>
+          </div>
+          <div v-if="pingjiiMsg" :class="['pj-msg', pingjiiMsg.startsWith('✅')?'ok':'fail']">{{ pingjiiMsg }}</div>
+        </div>
+
+        <!-- 提现队列 -->
+        <div class="pj-section">
+          <div class="pj-title">💸 平级余额提现队列</div>
+          <div class="pj-queue-stats">
+            <span class="pj-stat-badge waiting">等待中 {{ pingjiiQueue.waiting?.length || 0 }}</span>
+            <span class="pj-stat-badge matched">已匹配 {{ pingjiiQueue.matched?.length || 0 }}</span>
+            <span class="pj-stat-badge done">已完成 {{ pingjiiQueue.completed?.length || 0 }}</span>
+          </div>
+
+          <div v-if="!pingjiiQueue.waiting?.length && !pingjiiQueue.matched?.length" class="empty">暂无待处理提现</div>
+
+          <div v-for="q in [...(pingjiiQueue.matched||[]), ...(pingjiiQueue.waiting||[])]" :key="q.id" class="pj-withdraw-card">
+            <div class="pj-w-top">
+              <span class="pj-w-user">#{{ q.user_no }}</span>
+              <span :class="['pj-w-status', q.status]">{{ q.status === 'waiting' ? '⏳ 等待中' : '🔗 已匹配' }}</span>
+              <span class="pj-w-amount">¥{{ q.amount }}</span>
+            </div>
+            <div class="pj-w-time">申请时间：{{ new Date(q.created_at).toLocaleString('zh-CN') }}</div>
+            <button v-if="q.status === 'matched'" class="pj-btn-complete" @click="completePingjiiWithdraw(q.id)">
+              ✅ 确认已打款
+            </button>
+          </div>
+        </div>
+      </template>
+      <div v-if="tab==='pingjii' && pingjiiLoading" class="loading">加载中...</div>
+
+      <!-- 内排节点管理（旧，保留备用）-->
       <template v-if="tab==='nodes' && !loading">
         <div class="node-intro">
           <div class="node-intro-title">🔗 内排节点链（10个）</div>
@@ -572,6 +673,36 @@ function switchTab(t) {
 .ur-exited-full { color:#e53e3e; font-weight:600; }
 .btn-freeze { padding: 6px 14px; background: #e53e3e; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .btn-unfreeze { padding: 6px 14px; background: #48bb78; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+
+/* 平级节点管理 */
+.pj-section { background:#fff; border-radius:14px; border:1px solid #f0f0f0; padding:16px; margin-bottom:14px; }
+.pj-title { font-size:15px; font-weight:700; color:#333; margin-bottom:4px; }
+.pj-sub { font-size:12px; color:#999; margin-bottom:14px; }
+.pj-nodes { display:flex; gap:12px; margin-bottom:10px; }
+.pj-node-slot { flex:1; background:#f9fafb; border:2px solid #e2e8f0; border-radius:12px; padding:14px; text-align:center; }
+.pj-node-order { font-size:12px; color:#999; margin-bottom:6px; }
+.pj-node-id { font-size:18px; font-weight:700; color:#333; margin-bottom:6px; }
+.pj-node-qr { display:flex; gap:8px; justify-content:center; margin-bottom:6px; font-size:12px; }
+.qr-ok { color:#07C160; } .qr-no { color:#e53e3e; }
+.pj-node-stat { font-size:12px; color:#888; }
+.pj-btn-create { width:100%; padding:10px; background:linear-gradient(135deg,#4299e1,#3182ce); color:#fff; border:none; border-radius:8px; font-size:13px; cursor:pointer; margin-top:8px; }
+.pj-btn-create:disabled { background:#ddd; color:#aaa; }
+.pj-msg { padding:8px 10px; border-radius:8px; font-size:13px; margin-top:8px; }
+.pj-msg.ok { background:#c6f6d5; color:#276749; } .pj-msg.fail { background:#fed7d7; color:#9b2c2c; }
+.pj-queue-stats { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+.pj-stat-badge { font-size:12px; padding:4px 12px; border-radius:20px; font-weight:600; }
+.pj-stat-badge.waiting { background:#fef3c7; color:#92400e; }
+.pj-stat-badge.matched { background:#dbeafe; color:#1e40af; }
+.pj-stat-badge.done { background:#d1fae5; color:#065f46; }
+.pj-withdraw-card { background:#f9fafb; border:1px solid #e2e8f0; border-radius:10px; padding:12px; margin-bottom:10px; }
+.pj-w-top { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.pj-w-user { font-size:15px; font-weight:700; color:#333; }
+.pj-w-status { font-size:12px; padding:2px 8px; border-radius:10px; }
+.pj-w-status.waiting { background:#fef3c7; color:#92400e; }
+.pj-w-status.matched { background:#dbeafe; color:#1e40af; }
+.pj-w-amount { margin-left:auto; font-size:18px; font-weight:700; color:#f0a500; }
+.pj-w-time { font-size:12px; color:#999; margin-bottom:8px; }
+.pj-btn-complete { width:100%; padding:10px; background:#07C160; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; }
 
 /* 节点管理 */
 .node-intro { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }

@@ -5,7 +5,7 @@
 
 import { getDB, getUser } from '../db.js'
 import { authMiddleware } from './auth.js'
-import { onAllTasksConfirmed } from './activate.js'
+import { onAllTasksConfirmed, creditPingjiiChain } from './activate.js'
 import { ok, err } from '../utils/response.js'
 
 const CONFIRM_TIMEOUT_MS = 30 * 60 * 1000  // 30分钟
@@ -148,6 +148,21 @@ async function confirmTask(db, taskId, userId) {
   const receiver = await getUser(db, userId)
   const newTotal = (parseFloat(receiver.total_received) || 0) + parseFloat(task.amount)
   await db.from('users').update({ total_received: newTotal }).eq('id', userId)
+
+  // 平级节点收款确认 → 自动给链上用户记余额
+  if (task.type === 'ping_ji_node_1') {
+    creditPingjiiChain(db, task.payer_id, 1).catch(() => {})
+    // 若是提现队列匹配，标记为已完成
+    if (task.pq_id) {
+      await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+    }
+  }
+  if (task.type === 'ping_ji_node_2') {
+    creditPingjiiChain(db, task.payer_id, 2).catch(() => {})
+    if (task.pq_id) {
+      await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+    }
+  }
 
   // 更新订单进度
   await updateOrderProgress(db, task.order_id)

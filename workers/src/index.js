@@ -6,6 +6,7 @@ import { handleUser }                              from './routes/user.js'
 import { handleAdmin }                             from './routes/admin.js'
 import { handleCommunity, handleUpload, handleAI } from './routes/community.js'
 import { handleSubsidy }                           from './routes/subsidy.js'
+import { handlePingjii }                           from './routes/pingjii.js'
 import { cors }                                    from './utils/response.js'
 
 export default {
@@ -31,6 +32,7 @@ export default {
         handleUpload,
         handleAI,
         handleSubsidy,
+        handlePingjii,
       ]
 
       for (const handler of handlers) {

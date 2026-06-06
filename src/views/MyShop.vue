@@ -28,6 +28,31 @@ const teamStats = ref({
   directCount: 0, totalCount: 0,
   totalReceived: 0, recentTasks: [], repurchaseNeed: false, agentsJoined: 0, bossesExited: 0, repurchaseLimit: 900
 })
+
+// 平级余额
+const pingjiiBalance  = ref(0)
+const pingjiiWithdrawMsg = ref('')
+const pingjiiWithdrawing = ref(false)
+
+async function loadPingjiiBalance() {
+  try {
+    const res = await axios.get('/api/pingjii/balance')
+    if (res.data.code === 200) pingjiiBalance.value = parseFloat(res.data.data.balance || 0)
+  } catch {}
+}
+
+async function requestPingjiiWithdraw() {
+  if (pingjiiWithdrawing.value) return
+  pingjiiWithdrawing.value = true
+  pingjiiWithdrawMsg.value = ''
+  try {
+    const res = await axios.post('/api/pingjii/withdraw')
+    pingjiiWithdrawMsg.value = res.data.data?.message || '✅ 申请已提交'
+    await loadPingjiiBalance()
+  } catch (e) {
+    pingjiiWithdrawMsg.value = '❌ ' + (e.response?.data?.message || '申请失败')
+  } finally { pingjiiWithdrawing.value = false }
+}
 const me = computed(() => store.userInfo || {})
 const isOwner   = computed(() => me.value.role === 'owner')
 const isManager = computed(() => me.value.role === 'manager')
@@ -51,6 +76,7 @@ async function loadAll() {
     if (r1.status === 'fulfilled' && r1.value.data.code === 200) shop.value = r1.value.data.data
     if (r2.status === 'fulfilled' && r2.value.data.code === 200) teamStats.value = r2.value.data.data
   } catch {}
+  loadPingjiiBalance()
 }
 
 async function refreshAll() {
@@ -371,11 +397,31 @@ function fmtTime(ts) {
 
       <!-- ════════════ 平级奖 ════════════ -->
       <div class="partner-card" v-if="activeNav === 'pingji'">
+
+        <!-- 平级余额卡片 -->
+        <div class="pj-balance-card">
+          <div class="pj-bal-label">平级余额</div>
+          <div class="pj-bal-amount">¥{{ pingjiiBalance.toFixed(0) }}</div>
+          <div class="pj-bal-sub">每次有人在你链上激活，自动 +¥10</div>
+          <div v-if="pingjiiBalance >= 60">
+            <button class="pj-withdraw-btn" :disabled="pingjiiWithdrawing" @click="requestPingjiiWithdraw">
+              {{ pingjiiWithdrawing ? '申请中...' : '💸 申请提现 ¥60' }}
+            </button>
+            <div v-if="pingjiiWithdrawMsg" class="pj-withdraw-msg">{{ pingjiiWithdrawMsg }}</div>
+          </div>
+          <div v-else class="pj-bal-progress">
+            <div class="pj-prog-bar">
+              <div class="pj-prog-fill" :style="{ width: Math.min(pingjiiBalance/60*100, 100)+'%' }"></div>
+            </div>
+            <span class="pj-prog-tip">还差 ¥{{ Math.max(0, 60-pingjiiBalance).toFixed(0) }} 可提现</span>
+          </div>
+        </div>
+
         <div class="partner-badge-section qualified">
           <div class="badge-icon">📊</div>
           <div class="badge-info">
             <div class="badge-title">平级奖 · 平级链</div>
-            <div class="badge-subtitle">每人激活时，沿邀请链自动分配平级奖，每节点10元</div>
+            <div class="badge-subtitle">每人激活时，沿邀请链自动分配平级奖，每节点¥10入余额</div>
           </div>
           <span class="badge-status active">✅ 已激活</span>
         </div>
@@ -690,6 +736,19 @@ function fmtTime(ts) {
 .stat-value { display:block; font-size:26px; font-weight:800; color:#1a202c; line-height:1.1; }
 .stat-value.stat-done { color:#07C160; font-size:22px; }
 .stat-label { display:block; font-size:11px; color:#888; }
+/* 平级余额卡片 */
+.pj-balance-card { background:linear-gradient(135deg,#4299e1,#3182ce); border-radius:16px; padding:20px; margin-bottom:14px; color:#fff; text-align:center; }
+.pj-bal-label { font-size:12px; opacity:.85; margin-bottom:4px; }
+.pj-bal-amount { font-size:42px; font-weight:800; line-height:1; margin-bottom:4px; }
+.pj-bal-sub { font-size:12px; opacity:.8; margin-bottom:14px; }
+.pj-withdraw-btn { background:#fff; color:#3182ce; border:none; border-radius:10px; padding:10px 24px; font-size:14px; font-weight:700; cursor:pointer; }
+.pj-withdraw-btn:disabled { opacity:.6; cursor:not-allowed; }
+.pj-withdraw-msg { font-size:12px; margin-top:8px; opacity:.9; }
+.pj-bal-progress { margin-top:4px; }
+.pj-prog-bar { background:rgba(255,255,255,.3); border-radius:10px; height:8px; margin-bottom:6px; }
+.pj-prog-fill { background:#fff; border-radius:10px; height:100%; transition:width .4s; }
+.pj-prog-tip { font-size:12px; opacity:.8; }
+
 .invite-locked { background:#f5f5f5; border-radius:10px; padding:14px; text-align:center; color:#999; font-size:13px; margin-top:14px; }
 .invite-box { background:#fffbea; border-radius:10px; padding:14px; text-align:center; margin-top:14px; }
 .invite-box-title { font-size:12px; color:#888; margin-bottom:8px; }
