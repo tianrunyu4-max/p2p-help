@@ -6,9 +6,11 @@ export function isAIQuestion(message) {
   return true
 }
 
+import { apiUrl } from '../utils/apiBase.js'
+
 export async function getAIResponse(message, userId = null) {
   try {
-    const res = await fetch('/api/ai/chat', {
+    const res = await fetch(apiUrl('/api/ai/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, userId }),

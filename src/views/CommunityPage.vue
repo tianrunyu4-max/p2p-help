@@ -6,6 +6,7 @@ import { getMessageService } from '../services/messageService.js'
 import { uploadImage, uploadAvatar, uploadVideo } from '../services/uploadService.js'
 import { getOrCreateUserId } from '../utils/auth.js'
 import { isAIQuestion, getAIResponse } from '../services/aiBotService.js'
+import { apiUrl } from '../utils/apiBase.js'
 
 const router = useRouter()
 const store  = useUserStore()
@@ -137,7 +138,7 @@ async function sendMessage() {
     nextTick(() => scrollToBottom())
     try {
       const question = matchedBot.keywords.reduce((t, k) => t.replace(new RegExp(k, 'gi'), ''), text).trim() || text
-      const res = await fetch(`/api/chat/${matchedBot.bot}`, {
+      const res = await fetch(apiUrl(`/api/chat/${matchedBot.bot}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: question, userId: currentUserId.value })

@@ -1,6 +1,7 @@
 /**
  * 消息服务 - 通过 Worker API 管理消息流
  */
+import { apiUrl } from '../utils/apiBase.js'
 
 let instance = null
 
@@ -43,7 +44,7 @@ class MessageService {
 
   async loadMessages() {
     try {
-      const res = await fetch('/api/community/messages?limit=30')
+      const res = await fetch(apiUrl('/api/community/messages?limit=30'))
       const data = await res.json()
       if (data.code === 200) {
         this.messages = data.data
@@ -122,7 +123,7 @@ class MessageService {
   async _saveToServer(msg) {
     if (msg.uploading) return
     try {
-      await fetch('/api/community/messages', {
+      await fetch(apiUrl('/api/community/messages'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -20,6 +20,8 @@ async function compressImage(file, maxWidth = 800, quality = 0.70) {
   })
 }
 
+import { apiUrl } from '../utils/apiBase.js'
+
 async function uploadFile(file, type = 'image') {
   const formData = new FormData()
   formData.append('file', file)
@@ -27,7 +29,7 @@ async function uploadFile(file, type = 'image') {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeout)
   try {
-    const res = await fetch(`/api/upload?type=${type}`, { method: 'POST', body: formData, signal: controller.signal })
+    const res = await fetch(apiUrl(`/api/upload?type=${type}`), { method: 'POST', body: formData, signal: controller.signal })
     clearTimeout(id)
     const data = await res.json()
     if (data.code === 200 && data.data?.url) return data.data
