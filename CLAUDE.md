@@ -6,18 +6,27 @@
 3. **修改前先读文件**，不要凭记忆改代码
 4. **只用中文回复**，用户是中国人
 
+## ⚠️ APK 改动必须做的完整流程
+1. 改代码 → `git push` → GitHub Actions 自动打包（约2分钟）
+2. `gh run download <runId> --repo tianrunyu4-max/p2p-help --dir "C:/Users/Administrator/Desktop/p2p-apk"`
+3. `cp "C:/Users/Administrator/Desktop/p2p-apk/p2p-help-debug/app-debug.apk" "C:/Users/Administrator/Desktop/p2p-help/public/app.apk"`
+4. `git add public/app.apk && git commit -m "chore: 更新APK" && git push origin main`
+5. 下载地址：**https://p2p.ai-airdrop.uk/app.apk**
+
+---
+
 ## 项目基本信息
 - **路径**：C:\Users\Administrator\Desktop\p2p-help
 - **性质**：全新独立项目，与 task-wall 无关
 - **前端**：Vue 3 + Vite，hash 路由
 - **后端**：Cloudflare Workers，数据库 Supabase（新建独立项目）
 - **域名**：p2p.ai-airdrop.uk（子域名）
-- **Android**：Capacitor 打包 APK（在 p2p-apk 文件夹）
-- **iOS**：H5 链接直接访问
+- **APK下载**：https://p2p.ai-airdrop.uk/app.apk（每次改动后更新）
+- **管理员密码**：`152527aB,152527aa`（含逗号，整体是一个密码）
 
 ---
 
-## 当前业务制度（最新版，2025年6月）
+## 当前业务制度（最新版，2026年6月）
 
 ### 激活金分配（260元全部P2P点对点）
 | 类型 | 金额 | 收款人 |
@@ -27,114 +36,112 @@
 | 平级奖 | **10×12=120元** | 沿邀请链向上，代码12层，前端显示"平级链" |
 | **合计** | **260元** ✓ | |
 
-> ⚠️ 前端不显示"12层"字样，统一用"平级链"，避免多层次传销嫌疑
+> ⚠️ 前端不显示"12层"字样，统一用"平级链"
 
 ### 复投规则
 - 累计收款 ≥ **900元** → 必须复投（重走激活流程）
-- 复投完成后继续享受收款资格
 
-### 平级奖节点补位
-- 推荐链不足12层时，由 `is_node=true` 的账号按 `node_order` 顺序补足
-- **前期必须在数据库设置节点账号**（建议设12个），否则平级奖凑不满
-- SQL：`UPDATE users SET is_node=true, node_order=1 WHERE user_no='账号ID'`
+### 贡献机制（出局后邀请链贡献）
+- **无滑落** (`contribution_slot='first'`)：第1个直推贡献回原模型（`invite_used=0`时触发）
+- **有滑落** (`contribution_slot='fifth'`)：第2个直推贡献回原模型（`invite_used=1`时触发）
+- 贡献触发后 `has_contributed=true`，后续不再触发
+- ⚠️ `checkContribution` 函数在 `activate.js`，条件已修正为 `pushCount===0` / `pushCount===1`
 
 ### 身份勋章（社区顶部ID旁显示）
-| 勋章 | 条件 | 颜色 |
-|------|------|------|
-| 🌱 游客 | 未激活 | 灰色 |
-| 👑 老板 | role='owner' 或 is_exited=true | 金色 |
-| 👔 代理 | 已激活且非老板 | 蓝色 |
+| 勋章 | 条件 |
+|------|------|
+| 🌱 游客 | 未激活 |
+| 👑 老板 | role='owner' 或 is_exited=true |
+| 👔 代理 | 已激活且非老板 |
 
 ---
 
 ## 重要文件
-- `src/views/CommunityPage.vue` - 社区聊天页（顶部ID+勋章、输入框）
-- `src/views/HomePage.vue` - 首页（ID展示+激活入口）
-- `src/views/ActivatePage.vue` - 激活页
-- `src/views/ParticipatePage.vue` - 参与说明+分配明细
-- `src/views/PaymentDetail.vue` - 单笔支付详情（扫码+截图上传）
-- `src/views/MyShop.vue` - 我的店铺（平级奖/帮扶奖/收益统计）
-- `src/views/PendingConfirm.vue` - 待确认收款列表
-- `src/views/AdminPanel.vue` - 管理后台
-- `src/views/SubsidyPage.vue` - 生活补贴页
-- `src/stores/userStore.js` - 用户状态（localStorage缓存token+userInfo）
-- `src/services/messageService.js` - 社区消息服务
-- `src/App.vue` - 全局入口（底部导航、复投锁定900元）
-- `workers/src/routes/activate.js` - 激活匹配核心（ACTIVATE_AMOUNT/JIAN_DIAN/MAX_LEVEL）
-- `workers/src/routes/orders.js` - 截图上传+确认收款
-- `workers/src/routes/community.js` - 社区消息+AI提示词（大虾）
-- `workers/src/routes/shop.js` - 店铺逻辑（REPURCHASE_LIMIT）
-- `workers/src/db.js` - Supabase客户端（已全局缓存，不重复创建）
+- `src/main.js` - Capacitor检测（localhost→API指向线上）
+- `src/views/CommunityPage.vue` - 社区聊天页（keep-alive保活，30s轮询刷新用户状态）
+- `src/views/MyShop.vue` - 我的店铺（团队数据4格：直推代理/出局老板/累计收款/距复投）
+- `src/views/PendingConfirm.vue` - 待确认收款（按钮加锁防重复）
+- `src/views/ProfilePage.vue` - 我的页面（含换设备找回账号功能）
+- `src/views/AdminPanel.vue` - 管理后台（手动内排激活、用户管理）
+- `src/stores/userStore.js` - 用户状态（暴露refreshUser，后台静默刷新）
+- `src/services/messageService.js` - 消息服务（localStorage缓存5分钟）
+- `src/App.vue` - 全局入口（keep-alive包裹4个主要页面）
+- `capacitor.config.json` - Capacitor配置（appName="1+1"，无server.url，本地打包）
+- `workers/src/routes/activate.js` - 激活核心（ACTIVATE_AMOUNT=260, JIAN_DIAN=80, MAX_LEVEL=12）
+- `workers/src/routes/admin.js` - 管理接口（手动激活、fix-shop、fix-rotation-count）
+- `workers/src/routes/orders.js` - 截图上传+确认收款（安全校验）
+- `workers/src/routes/shop.js` - 店铺逻辑（REPURCHASE_LIMIT=900，rotation_count统计）
+- `workers/src/routes/community.js` - 社区消息+大虾AI提示词
+- `workers/src/db.js` - Supabase客户端（全局缓存）
 
 ---
 
-## ✅ 已完成的重要修复（不要重复做）
+## ✅ 已完成改动记录（不要重复做）
 
-### 数据改动记录
-- 激活金：230 → **260元**
-- 见点奖：70 → **80元**
-- 平级层数：10层 → **12层**（前端显示"平级链"）
-- 复投阈值：700 → **900元**（activate.js / shop.js / App.vue / MyShop.vue 全部同步）
+### 数据
+- 激活金 230→260，见点奖 70→80，平级 10层→12层，复投阈值 700→900
+- shops表加 `rotation_count` 列（Supabase已执行ALTER TABLE）
+- 830274店铺 rotation_count 手动修正为 2
 
-### 安全加固（orders.js + community.js）
-- 截图上传：最小30KB限制，防空白假图
-- 截图URL来源校验：必须是自己的 Supabase Storage（p2p-media bucket）
-- 截图防复用：同一截图不能用于多个任务
-- 确认收款：CAS原子更新（`.eq('status', task.status)`），防并发重复确认
-- 前端按钮加锁：confirming/disputing 状态，防双击
+### 逻辑修复
+- `checkContribution`：`pushCount===0`(无滑落) / `pushCount===1`(有滑落)，已修正
+- `rotateIntoShop`：出局时 `rotation_count+1`，已补充
+- `team-stats`：`bossesExited` 改用 `shop.rotation_count`，`agentsJoined` = rotation_count + 当前代理
+- `manual-activate`：激活后调用 `rotateIntoShop`，新人正确进入店铺模型
+- `fix-shop/:userNo`：管理接口，补做店铺旋转（修复手动激活未进店问题）
+
+### 安全加固
+- 截图：最小30KB、URL来源校验(p2p-media)、防复用、CAS原子确认
+- 前端：confirming/disputing加锁防双击
 
 ### 性能优化
-- `workers/src/db.js`：Supabase客户端全局缓存（`_dbCache`），同一Worker实例只创建一次
-- `workers/src/routes/community.js`：去掉 `await import('@supabase/supabase-js')` 动态导入，改为顶部静态导入
-- 消息加载：80条 → 30条，上限50
-- 消息接口：加 `Cache-Control: public, max-age=5` 短缓存
-- `src/stores/userStore.js`：老用户直接用localStorage缓存，`autoInit()` 不阻塞，后台静默刷新
-- `src/views/CommunityPage.vue`：加骨架屏（shimmer动画），首次加载不显示白屏
+- keep-alive保活：Community/MyShop/SubsidyPage/PendingConfirm
+- 消息localStorage缓存（5分钟TTL），切标签秒显示
+- DB客户端全局缓存，消息30条，老用户后台静默刷新
+- Capacitor本地打包（去掉server.url），API检测用 `hostname==='localhost'`
 
-### AI大虾提示词（community.js）
-- `AI_SYSTEM_PROMPT` 和 `deepsook` bot prompt 已更新最新制度
-- 内容：260元、见点80、帮扶30×2、平级链10元/节点、复投900、5步参与流程
+### 管理后台新功能
+- 手动内排激活（跳过付款流程，自动执行店铺旋转）
+- 用户管理：只显示激活用户，展示推荐人ID/身份/出局人数
+- fix-rotation-count：修复历史rotation_count数据
 
-### UI合规处理（MyShop.vue）
-- 平级奖页面：删掉"邀请1人解锁12层"/"未达标"/"紧缩继承"等不存在的逻辑提示
-- 所有"12层"改为"平级链"/"链上节点"
-- 分配明细：`¥10×12` → `¥120`（不显示层数）
-
----
-
-## ⚠️ 激活弹窗有两个（社区页身份识别）
-- 身份勋章在 `CommunityPage.vue` 的 badge computed 里
-- 逻辑基于 `store.userInfo`（`is_active`, `is_exited`, `role`）
+### 前端改动
+- 社区输入框：只保留 `@大虾`
+- 团队数据：4格显示（去掉直推/团队总人数，去掉单位字）
+- 邀请码：仅激活用户可见（游客显示"🔒激活后才能获得邀请码"）
+- ProfilePage：加"换设备找回账号"功能（输入ID+安全答案）
+- 平级奖页：去掉不存在的解锁逻辑，统一用"平级链"
 
 ---
 
 ## Supabase 数据库
-- **独立项目**：p2p帮助 组织，项目ID `nygskhqxjddkqlckafjw`
-- **与 task-wall 完全隔离**（task-wall 用 `gjyttvqdxuwhzheriivo`）
-- **表**：users / activation_orders / payment_tasks / messages / subsidy_queue
+- **项目ID**：`nygskhqxjddkqlckafjw`
+- **SQL Editor**：https://supabase.com/dashboard/project/nygskhqxjddkqlckafjw/sql/new
+- **表**：users / shops / activation_orders / payment_tasks / messages / subsidy_queue
+
+### shops 表关键字段
+```
+slot1_owner_id  -- 老板（永久位）
+slota_tenant_id -- 代理（流动位）
+rotation_count  -- 累计旋转次数（代理出局+1）
+```
 
 ### users 表关键字段
 ```
-user_no        -- 6位数字ID（8开头）
-is_active      -- 是否激活
-is_exited      -- 是否出局
-is_node        -- 是否为平级补位节点账号
-node_order     -- 节点排序（补位优先级）
-role           -- 'member' | 'owner' | 'manager'
-referrer_id    -- 推荐人ID
-invite_code    -- 邀请码
-invite_used    -- 邀请码使用次数（最多2次）
-total_received -- 累计收款（≥900触发复投锁定）
-is_frozen      -- 是否冻结
+user_no, is_active, is_exited, role
+referrer_id, invite_code, invite_used
+total_received, is_frozen
+is_node, node_order        -- 平级补位节点
+has_contributed            -- 是否已触发贡献
+contribution_slot          -- 'first'无滑落 / 'fifth'有滑落
+current_shop_id            -- 当前所在店铺
 ```
 
 ---
 
 ## Cloudflare Workers 环境变量
-- `SUPABASE_URL` = p2p-help 独立项目地址
-- `SUPABASE_ANON_KEY` = p2p-help anon key
-- `JWT_SECRET` = 已设置
-- `ADMIN_PASSWORD` = 管理员后台密码
+- `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `JWT_SECRET`
+- `ADMIN_PASSWORD` = `152527aB,152527aa`
 - `DEEPSEEK_API_KEY` = 大虾AI接口密钥
 
 ---
@@ -143,12 +150,4 @@ is_frozen      -- 是否冻结
 ```bash
 cd "C:\Users\Administrator\Desktop\p2p-help"
 git add 文件名 && git commit -m "fix/feat: 描述" && git push origin main
-# GitHub Actions 自动部署到 CF Workers
-# 验证：curl https://p2p.ai-airdrop.uk/api/auth/init -X POST
 ```
-
-## API规范
-- 前缀：`/api/`
-- 返回格式：`{ code: 200, data: {} }` 或 `{ code: 400, message: '错误信息' }`
-- 认证：JWT Token（存 localStorage，key='token'）
-- 图片：Supabase Storage（bucket: p2p-media）
