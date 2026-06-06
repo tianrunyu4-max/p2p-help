@@ -44,6 +44,38 @@ function logout() {
   store.logout()
   router.push('/')
 }
+
+// ── 换设备找回账号 ──────────────────────────────
+const showRecover = ref(false)
+const recoverUserId = ref('')
+const recoverAnswer = ref('')
+const recoverMsg = ref('')
+const recoverLoading = ref(false)
+
+async function doRecover() {
+  if (!recoverUserId.value.trim() || !recoverAnswer.value.trim()) {
+    recoverMsg.value = '❌ 请填写ID和安全答案'
+    return
+  }
+  recoverLoading.value = true
+  recoverMsg.value = ''
+  try {
+    const res = await axios.post('/api/auth/recover', {
+      userId:         recoverUserId.value.trim(),
+      securityAnswer: recoverAnswer.value.trim(),
+    })
+    if (res.data.code === 200) {
+      store.setToken(res.data.data.token)
+      store.setUserInfo(res.data.data.user)
+      // 同步本地ID
+      localStorage.setItem('p2p_local_id', res.data.data.user.user_no)
+      recoverMsg.value = `✅ 找回成功！欢迎回来 #${res.data.data.user.user_no}`
+      setTimeout(() => { showRecover.value = false; router.push('/') }, 1500)
+    }
+  } catch (e) {
+    recoverMsg.value = '❌ ' + (e.response?.data?.message || '找回失败，请检查ID和答案')
+  } finally { recoverLoading.value = false }
+}
 </script>
 
 <template>
@@ -84,6 +116,20 @@ function logout() {
       </button>
     </div>
 
+    <!-- 换设备找回账号 -->
+    <button class="btn-recover" @click="showRecover = !showRecover">📱 换设备？找回我的账号</button>
+
+    <div v-if="showRecover" class="recover-card">
+      <div class="recover-title">🔑 换设备找回账号</div>
+      <div class="recover-sub">输入你的ID和注册时设置的安全答案</div>
+      <input v-model="recoverUserId" class="recover-input" placeholder="我的ID（如 830274）" type="number" />
+      <input v-model="recoverAnswer" class="recover-input" placeholder="安全答案（身份证后6位等）" />
+      <button class="recover-btn" :disabled="recoverLoading" @click="doRecover">
+        {{ recoverLoading ? '找回中...' : '立即找回' }}
+      </button>
+      <div v-if="recoverMsg" :class="['recover-msg', recoverMsg.startsWith('✅') ? 'ok' : 'fail']">{{ recoverMsg }}</div>
+    </div>
+
     <button class="btn-logout" @click="logout">退出登录</button>
   </div>
 </template>
@@ -108,5 +154,15 @@ function logout() {
 .qr-img { width: 160px; height: 160px; object-fit: contain; border-radius: 8px; border: 1px solid #f0f0f0; }
 .qr-empty { width: 160px; height: 160px; display: flex; align-items: center; justify-content: center; background: #f9f9f9; border-radius: 8px; color: #ccc; font-size: 14px; margin: 0 auto; }
 .btn-upload { width: 100%; padding: 12px; background: #4299e1; color: #fff; border: none; border-radius: 10px; font-size: 15px; cursor: pointer; }
+.btn-recover { width: 100%; padding: 12px; background: #fff; color: #1976d2; border: 1px solid #1976d2; border-radius: 10px; font-size: 14px; cursor: pointer; margin-bottom: 10px; }
+.recover-card { background: #f0f7ff; border: 1px solid #90cdf4; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+.recover-title { font-size: 15px; font-weight: 700; color: #1976d2; margin-bottom: 4px; }
+.recover-sub { font-size: 12px; color: #666; margin-bottom: 12px; }
+.recover-input { width: 100%; padding: 11px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; outline: none; box-sizing: border-box; }
+.recover-btn { width: 100%; padding: 12px; background: #1976d2; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.recover-btn:disabled { background: #ddd; color: #aaa; }
+.recover-msg { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+.recover-msg.ok { background: #c6f6d5; color: #276749; }
+.recover-msg.fail { background: #fed7d7; color: #9b2c2c; }
 .btn-logout { width: 100%; padding: 12px; background: #fff; color: #e53e3e; border: 1px solid #e53e3e; border-radius: 10px; font-size: 15px; cursor: pointer; }
 </style>

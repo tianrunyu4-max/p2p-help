@@ -6,8 +6,9 @@ import './style.css'
 import axios from 'axios'
 
 // Capacitor 本地打包模式：API 请求指向线上服务器
-// 判断是否在 Capacitor/Android 环境（本地 file:// 或 capacitor://）
-const isNative = window.location.protocol === 'capacitor:'
+// Android WebView 用 http://localhost 或 capacitor://localhost
+const isNative = window.location.hostname === 'localhost'
+  || window.location.protocol === 'capacitor:'
   || window.location.protocol === 'file:'
   || (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform?.())
 
