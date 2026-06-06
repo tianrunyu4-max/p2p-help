@@ -76,13 +76,22 @@ async function createActivationOrder(db, user) {
     receiver_id: t.receiver_id, amount: t.amount,
     type: t.type, type_label: t.type_label,
     level: t.level || null, status: 'pending',
+    pq_id: t.pq_id || null,   // Bug1修复：平级提现队列ID
   }))
   const { data: inserted } = await db.from('payment_tasks').insert(taskRows).select()
 
   // 生活补贴玩家：被匹配后立即更新收款计数（锁定这笔收款）
+  // Bug5修复：平级提现队列匹配后，记录 matched_task_id 供管理员手动完成时触发链上记账
   for (const t of tasks) {
     if (t.type === 'bang_fu_subsidy' && t.subsidy_queue_id) {
       await updateSubsidyReceived(db, t.subsidy_queue_id)
+    }
+    if (t.pq_id && inserted) {
+      const matchedTask = inserted.find(ins => ins.type === t.type && ins.pq_id === t.pq_id)
+      if (matchedTask) {
+        await db.from('pingjii_withdraw_queue')
+          .update({ matched_task_id: matchedTask.id }).eq('id', t.pq_id)
+      }
     }
   }
 
@@ -278,31 +287,35 @@ async function getPingjiiNode(db, order) {
 }
 
 // ── 确认平级节点收款后自动给链上用户记余额 ───────────────────
+// Bug3修复：直接跳过不属于本节点的层，从startLayer开始遍历
 export async function creditPingjiiChain(db, payerId, nodeOrder) {
-  // 从付款人开始，向上遍历链条
   const user = await getUser(db, payerId)
   if (!user?.referrer_id) return
 
-  const startLayer = (nodeOrder - 1) * 6 + 1  // 节点1:1-6层，节点2:7-12层
-  const endLayer   = nodeOrder * 6
+  const skipLayers = (nodeOrder - 1) * 6  // 节点1跳0层，节点2跳6层
+  const creditLayers = 6                   // 每个节点负责6层
 
+  // 先跳过前面不属于本节点的层
   let currentId = user.referrer_id
-  let layer = 1
   const visited = new Set()
 
-  while (currentId && layer <= endLayer) {
+  for (let i = 0; i < skipLayers && currentId; i++) {
+    if (visited.has(currentId)) return
+    visited.add(currentId)
+    const u = await getUser(db, currentId)
+    if (!u) return
+    currentId = u.referrer_id
+  }
+
+  // 再给本节点负责的6层记余额
+  for (let i = 0; i < creditLayers && currentId; i++) {
     if (visited.has(currentId)) break
     visited.add(currentId)
     const u = await getUser(db, currentId)
     if (!u) break
-
-    // 只给该节点负责的层（1-6 或 7-12）记余额
-    if (layer >= startLayer) {
-      const newBal = parseFloat(u.pingjii_balance || 0) + 10
-      await db.from('users').update({ pingjii_balance: newBal }).eq('id', u.id)
-    }
+    const newBal = parseFloat(u.pingjii_balance || 0) + 10
+    await db.from('users').update({ pingjii_balance: newBal }).eq('id', u.id)
     currentId = u.referrer_id
-    layer++
   }
 }
 

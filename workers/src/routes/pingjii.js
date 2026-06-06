@@ -10,6 +10,7 @@
 
 import { getDB, getUser, generateUserId, generateInviteCode } from '../db.js'
 import { authMiddleware } from './auth.js'
+import { creditPingjiiChain } from './activate.js'
 import { ok, err } from '../utils/response.js'
 
 const WITHDRAW_MIN = 60  // 最低提现金额
@@ -82,11 +83,16 @@ export async function handlePingjii(request, env, pathname) {
     const { data: q } = await db.from('pingjii_withdraw_queue').select('*').eq('id', qId).single()
     if (!q) return err('记录不存在')
     await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', qId)
-    // 扣除用户余额
-    const u = await getUser(db, q.user_id)
-    if (u) {
-      const newBal = Math.max(0, parseFloat(u.pingjii_balance || 0) - parseFloat(q.amount))
-      await db.from('users').update({ pingjii_balance: newBal }).eq('id', q.user_id)
+    // Bug2修复：余额已在申请时扣除，这里不再重复扣
+    // Bug5修复：管理员手动完成时，也要给链上用户记余额
+    // 从 matched_task_id 找到付款人，触发链上记账
+    if (q.matched_task_id) {
+      const { data: task } = await db.from('payment_tasks')
+        .select('payer_id, type').eq('id', q.matched_task_id).maybeSingle()
+      if (task?.payer_id) {
+        const nodeOrder = task.type === 'ping_ji_node_1' ? 1 : 2
+        creditPingjiiChain(db, task.payer_id, nodeOrder).catch(() => {})
+      }
     }
     return ok({ done: true })
   }
@@ -114,12 +120,17 @@ export async function handlePingjii(request, env, pathname) {
   // POST /api/pingjii/withdraw — 申请提现
   if (pathname === '/api/pingjii/withdraw' && request.method === 'POST') {
     const bal = parseFloat(me.pingjii_balance || 0)
-    if (bal < WITHDRAW_MIN) return err(`平级余额不足${WITHDRAW_MIN}元，当前：${bal}元`)
+    if (bal < WITHDRAW_MIN) return err(`平级余额不足${WITHDRAW_MIN}元，当前：${bal.toFixed(0)}元`)
 
     // 检查是否已在队列中
     const { data: existing } = await db.from('pingjii_withdraw_queue')
       .select('id').eq('user_id', me.id).in('status', ['waiting', 'matched']).maybeSingle()
     if (existing) return err('您已有待处理的提现申请，请等待处理后再次申请')
+
+    // Bug2修复：申请时立即冻结余额（扣除），防止重复申请
+    await db.from('users').update({
+      pingjii_balance: Math.max(0, bal - WITHDRAW_MIN)
+    }).eq('id', me.id)
 
     await db.from('pingjii_withdraw_queue').insert({
       user_id: me.id,

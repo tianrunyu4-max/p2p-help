@@ -5,7 +5,7 @@
 
 import { getDB, getUser } from '../db.js'
 import { ok, err } from '../utils/response.js'
-import { rotateIntoShop } from './activate.js'
+import { rotateIntoShop, creditPingjiiChain } from './activate.js'
 
 async function isAdmin(request, env) {
   const token = request.headers.get('X-Admin-Token') || ''
@@ -66,6 +66,20 @@ export async function handleAdmin(request, env, pathname) {
       await db.from('users').update({
         total_received: (parseFloat(receiver.total_received) || 0) + parseFloat(task.amount),
       }).eq('id', task.receiver_id)
+    }
+
+    // Bug4修复：强制完成平级节点任务时，也要给链上用户记余额
+    if (task.type === 'ping_ji_node_1') {
+      creditPingjiiChain(db, task.payer_id, 1).catch(() => {})
+      if (task.pq_id) {
+        await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+      }
+    }
+    if (task.type === 'ping_ji_node_2') {
+      creditPingjiiChain(db, task.payer_id, 2).catch(() => {})
+      if (task.pq_id) {
+        await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+      }
     }
 
     // 检查订单是否全部完成
