@@ -92,21 +92,17 @@ export async function handleAuth(request, env, pathname) {
     return ok({ message: '安全答案已保存' })
   }
 
-  // POST /api/auth/recover — 安全问题找回（换设备时恢复session）
+  // POST /api/auth/recover — 凭ID切换账号（换设备恢复session）
   if (pathname === '/api/auth/recover' && request.method === 'POST') {
-    const { userId, securityAnswer } = await request.json()
-    if (!userId || !securityAnswer) return err('参数不完整')
+    const { userId } = await request.json()
+    if (!userId) return err('请输入ID')
 
     const db = getDB(env)
     const { data: user } = await db.from('users')
       .select('*').eq('user_no', userId).maybeSingle()
 
-    if (!user) return err('ID不存在')
+    if (!user) return err('ID不存在，请确认后重试')
     if (user.is_frozen) return err('账户已被冻结')
-    if (!user.security_answer) return err('该账户未设置安全问题，请联系管理员')
-
-    const answerHash = await hashAnswer(securityAnswer.trim().toLowerCase(), env.JWT_SECRET)
-    if (answerHash !== user.security_answer) return err('安全答案错误')
 
     const token = await signJWT({ userId: user.id, userNo: user.user_no }, env.JWT_SECRET)
     return ok({ token, user: sanitizeUser(user) })

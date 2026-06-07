@@ -90,8 +90,8 @@ function showRecoverMsg(msg) {
 }
 
 async function doRecover() {
-  if (!recoverUserId.value.trim() || !recoverAnswer.value.trim()) {
-    showRecoverMsg('❌ 请填写ID和安全答案')
+  if (!recoverUserId.value.trim()) {
+    showRecoverMsg('❌ 请输入ID')
     return
   }
   recoverLoading.value = true
@@ -100,10 +100,7 @@ async function doRecover() {
     const res = await fetch(apiUrl('/api/auth/recover'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId:         recoverUserId.value.trim(),
-        securityAnswer: recoverAnswer.value.trim(),
-      })
+      body: JSON.stringify({ userId: recoverUserId.value.trim() })
     })
     const data = await res.json()
     if (data.code === 200) {
@@ -177,18 +174,12 @@ async function doRecover() {
     <button class="btn-recover" @click="showRecover = !showRecover">📱 换设备？找回我的账号</button>
 
     <div v-if="showRecover" class="recover-card">
-      <div class="recover-title">🔑 换设备找回账号</div>
-      <div class="recover-sub">输入你的ID和注册时设置的安全答案</div>
-      <!-- 未设密保时的前置警告 -->
-      <div v-if="!hasSecurityAnswer" class="recover-msg fail" style="margin-bottom:10px">
-        ⚠️ 你当前账户未设置密保答案，请先点击上方 <b>⚠️ 设密保</b> 按钮设置
-      </div>
+      <div class="recover-title">🔑 切换账号</div>
+      <div class="recover-sub">输入你的ID，直接切换登录</div>
       <input v-model="recoverUserId" class="recover-input" placeholder="我的ID（如 830274）" type="number" />
-      <input v-model="recoverAnswer" class="recover-input" placeholder="安全答案（身份证后6位等）" />
-      <!-- 结果消息放在按钮上方，键盘弹起也能看见 -->
       <div v-if="recoverMsg" ref="recoverMsgEl" :class="['recover-msg', recoverMsg.startsWith('✅') ? 'ok' : 'fail']">{{ recoverMsg }}</div>
       <button class="recover-btn" :disabled="recoverLoading" @click="doRecover">
-        {{ recoverLoading ? '找回中...' : '立即找回' }}
+        {{ recoverLoading ? '切换中...' : '立即切换' }}
       </button>
     </div>
 
