@@ -82,38 +82,29 @@ const recoverAnswer = ref('')
 const recoverMsg = ref('')
 const recoverLoading = ref(false)
 
-const recoverMsgEl = ref(null)
-
-function showRecoverMsg(msg) {
-  recoverMsg.value = msg
-  nextTick(() => recoverMsgEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
-}
-
 async function doRecover() {
-  if (!recoverUserId.value.trim()) {
-    showRecoverMsg('❌ 请输入ID')
-    return
-  }
+  const uid = String(recoverUserId.value || '').trim()
+  if (!uid) { alert('请输入ID'); return }
   recoverLoading.value = true
-  recoverMsg.value = ''
   try {
     const res = await fetch(apiUrl('/api/auth/recover'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: recoverUserId.value.trim() })
+      body: JSON.stringify({ userId: uid })
     })
     const data = await res.json()
     if (data.code === 200) {
       store.setToken(data.data.token)
       store.setUserInfo(data.data.user)
       localStorage.setItem('p2p_local_id', data.data.user.user_no)
-      showRecoverMsg(`✅ 找回成功！欢迎回来 #${data.data.user.user_no}`)
-      setTimeout(() => { showRecover.value = false; router.push('/') }, 1500)
+      alert('✅ 切换成功！欢迎回来 #' + data.data.user.user_no)
+      showRecover.value = false
+      router.push('/')
     } else {
-      showRecoverMsg('❌ ' + (data.message || '找回失败，请检查ID和答案'))
+      alert('❌ ' + (data.message || '切换失败'))
     }
   } catch (e) {
-    showRecoverMsg('❌ 网络错误，请重试')
+    alert('❌ 网络错误，请重试')
   } finally { recoverLoading.value = false }
 }
 </script>
