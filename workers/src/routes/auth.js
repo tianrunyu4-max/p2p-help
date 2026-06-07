@@ -78,6 +78,20 @@ export async function handleAuth(request, env, pathname) {
     return ok({ user: sanitizeUser(updatedUser), message: '绑定成功，请开始激活' })
   }
 
+  // POST /api/auth/set-security — 随时设置/修改安全答案（需登录）
+  if (pathname === '/api/auth/set-security' && request.method === 'POST') {
+    const payload = await authMiddleware(request, env)
+    if (!payload) return err('未登录', 401)
+
+    const { securityAnswer } = await request.json()
+    if (!securityAnswer || securityAnswer.trim().length < 2) return err('安全答案至少2位')
+
+    const db = getDB(env)
+    const answerHash = await hashAnswer(securityAnswer.trim().toLowerCase(), env.JWT_SECRET)
+    await db.from('users').update({ security_answer: answerHash }).eq('id', payload.userId)
+    return ok({ message: '安全答案已保存' })
+  }
+
   // POST /api/auth/recover — 安全问题找回（换设备时恢复session）
   if (pathname === '/api/auth/recover' && request.method === 'POST') {
     const { userId, securityAnswer } = await request.json()
@@ -141,5 +155,6 @@ async function hashAnswer(answer, secret) {
 
 function sanitizeUser(u) {
   const { security_answer, ...safe } = u
+  safe.has_security_answer = !!security_answer
   return safe
 }

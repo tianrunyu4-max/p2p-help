@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useUserStore } from '../stores/userStore.js'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -44,6 +44,35 @@ async function uploadQr(e) {
 function logout() {
   store.logout()
   router.push('/')
+}
+
+// ── 设置安全问题 ──────────────────────────────
+const hasSecurityAnswer = computed(() => store.userInfo?.has_security_answer)
+const showSetSecurity = ref(false)
+const securityInput = ref('')
+const securityMsg = ref('')
+const securityLoading = ref(false)
+
+async function doSetSecurity() {
+  if (!securityInput.value.trim()) { securityMsg.value = '❌ 请输入安全答案'; return }
+  securityLoading.value = true; securityMsg.value = ''
+  try {
+    const res = await fetch(apiUrl('/api/auth/set-security'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + store.token },
+      body: JSON.stringify({ securityAnswer: securityInput.value.trim() })
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      securityMsg.value = '✅ 安全答案已保存'
+      store.userInfo && (store.userInfo.has_security_answer = true)
+      securityInput.value = ''
+      setTimeout(() => { showSetSecurity.value = false; securityMsg.value = '' }, 1200)
+    } else {
+      securityMsg.value = '❌ ' + (data.message || '保存失败')
+    }
+  } catch { securityMsg.value = '❌ 网络错误，请重试' }
+  finally { securityLoading.value = false }
 }
 
 // ── 换设备找回账号 ──────────────────────────────
@@ -94,7 +123,21 @@ async function doRecover() {
       <div class="id-row">
         <span class="id-label">我的ID</span>
         <span class="id-val">{{ store.userId }}</span>
+        <button class="btn-set-security" @click="showSetSecurity = !showSetSecurity">
+          {{ hasSecurityAnswer ? '🔐 改密保' : '⚠️ 设密保' }}
+        </button>
       </div>
+
+      <!-- 设置安全问题内联表单 -->
+      <div v-if="showSetSecurity" class="security-form">
+        <div class="security-hint">身份证后6位、母亲姓名等，换设备时用于找回账号</div>
+        <input v-model="securityInput" class="recover-input" placeholder="输入安全答案（至少2位）" />
+        <button class="recover-btn" :disabled="securityLoading" @click="doSetSecurity">
+          {{ securityLoading ? '保存中...' : '保存' }}
+        </button>
+        <div v-if="securityMsg" :class="['recover-msg', securityMsg.startsWith('✅') ? 'ok' : 'fail']">{{ securityMsg }}</div>
+      </div>
+
       <div class="received-row">
         <span>累计收款</span>
         <span class="received-val">¥{{ totalReceived }}</span>
@@ -172,4 +215,7 @@ async function doRecover() {
 .recover-msg.ok { background: #c6f6d5; color: #276749; }
 .recover-msg.fail { background: #fed7d7; color: #9b2c2c; }
 .btn-logout { width: 100%; padding: 12px; background: #fff; color: #e53e3e; border: 1px solid #e53e3e; border-radius: 10px; font-size: 15px; cursor: pointer; }
+.btn-set-security { margin-left: auto; padding: 4px 10px; background: #fff; border: 1px solid #f0a500; color: #f0a500; border-radius: 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.security-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; }
+.security-hint { font-size: 12px; color: #999; margin-bottom: 10px; }
 </style>
