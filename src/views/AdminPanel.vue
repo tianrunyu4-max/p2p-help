@@ -350,6 +350,10 @@ function switchTab(t) {
                   </span>
                 </div>
                 <div class="pj-node-stat">累计收款 ¥{{ pingjiiNodes.find(n=>n.pingjii_node_order===order).total_received }}</div>
+                <button class="btn-set-qr" style="margin-top:8px;width:100%"
+                  @click="openQrDialog(pingjiiNodes.find(n=>n.pingjii_node_order===order))">
+                  📷 设置收款码
+                </button>
               </template>
               <button v-else class="pj-btn-create" :disabled="creatingPingjii"
                 @click="createPingjiiNode(order)">
