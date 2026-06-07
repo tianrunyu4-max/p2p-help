@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useUserStore } from '../stores/userStore.js'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -82,9 +82,16 @@ const recoverAnswer = ref('')
 const recoverMsg = ref('')
 const recoverLoading = ref(false)
 
+const recoverMsgEl = ref(null)
+
+function showRecoverMsg(msg) {
+  recoverMsg.value = msg
+  nextTick(() => recoverMsgEl.value?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+}
+
 async function doRecover() {
   if (!recoverUserId.value.trim() || !recoverAnswer.value.trim()) {
-    recoverMsg.value = '❌ 请填写ID和安全答案'
+    showRecoverMsg('❌ 请填写ID和安全答案')
     return
   }
   recoverLoading.value = true
@@ -103,13 +110,13 @@ async function doRecover() {
       store.setToken(data.data.token)
       store.setUserInfo(data.data.user)
       localStorage.setItem('p2p_local_id', data.data.user.user_no)
-      recoverMsg.value = `✅ 找回成功！欢迎回来 #${data.data.user.user_no}`
+      showRecoverMsg(`✅ 找回成功！欢迎回来 #${data.data.user.user_no}`)
       setTimeout(() => { showRecover.value = false; router.push('/') }, 1500)
     } else {
-      recoverMsg.value = '❌ ' + (data.message || '找回失败，请检查ID和答案')
+      showRecoverMsg('❌ ' + (data.message || '找回失败，请检查ID和答案'))
     }
   } catch (e) {
-    recoverMsg.value = '❌ 网络错误，请重试'
+    showRecoverMsg('❌ 网络错误，请重试')
   } finally { recoverLoading.value = false }
 }
 </script>
@@ -172,12 +179,17 @@ async function doRecover() {
     <div v-if="showRecover" class="recover-card">
       <div class="recover-title">🔑 换设备找回账号</div>
       <div class="recover-sub">输入你的ID和注册时设置的安全答案</div>
+      <!-- 未设密保时的前置警告 -->
+      <div v-if="!hasSecurityAnswer" class="recover-msg fail" style="margin-bottom:10px">
+        ⚠️ 你当前账户未设置密保答案，请先点击上方 <b>⚠️ 设密保</b> 按钮设置
+      </div>
       <input v-model="recoverUserId" class="recover-input" placeholder="我的ID（如 830274）" type="number" />
       <input v-model="recoverAnswer" class="recover-input" placeholder="安全答案（身份证后6位等）" />
+      <!-- 结果消息放在按钮上方，键盘弹起也能看见 -->
+      <div v-if="recoverMsg" ref="recoverMsgEl" :class="['recover-msg', recoverMsg.startsWith('✅') ? 'ok' : 'fail']">{{ recoverMsg }}</div>
       <button class="recover-btn" :disabled="recoverLoading" @click="doRecover">
         {{ recoverLoading ? '找回中...' : '立即找回' }}
       </button>
-      <div v-if="recoverMsg" :class="['recover-msg', recoverMsg.startsWith('✅') ? 'ok' : 'fail']">{{ recoverMsg }}</div>
     </div>
 
     <button class="btn-logout" @click="logout">退出登录</button>
