@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { uploadImage } from '../services/uploadService.js'
 
 // ── 管理员登录状态 ────────────────────────────
 const adminToken  = ref(sessionStorage.getItem('adminToken') || '')
@@ -171,10 +172,28 @@ async function setExistingAsNode() {
 }
 
 // QR 弹窗
-const qrDialog    = ref(null)   // { id, user_no, wechat_qr, alipay_qr }
-const qrWechat    = ref('')
-const qrAlipay    = ref('')
-const qrSaving    = ref(false)
+const qrDialog       = ref(null)
+const qrWechat       = ref('')
+const qrAlipay       = ref('')
+const qrSaving       = ref(false)
+const qrWechatUpload = ref(false)
+const qrAlipayUpload = ref(false)
+
+async function handleQrUpload(type, e) {
+  const file = e.target.files[0]; if (!file) return
+  if (type === 'wechat') qrWechatUpload.value = true
+  else qrAlipayUpload.value = true
+  try {
+    const { url } = await uploadImage(file)
+    if (type === 'wechat') qrWechat.value = url
+    else qrAlipay.value = url
+  } catch (err) { alert('上传失败: ' + err.message) }
+  finally {
+    if (type === 'wechat') qrWechatUpload.value = false
+    else qrAlipayUpload.value = false
+    e.target.value = ''
+  }
+}
 
 function openQrDialog(node) {
   qrDialog.value = node
@@ -445,18 +464,38 @@ function switchTab(t) {
         <div v-if="qrDialog" class="qr-overlay" @click.self="qrDialog=null">
           <div class="qr-dialog">
             <div class="qr-dialog-title">设置收款码 · #{{ qrDialog.user_no }}</div>
+
+            <!-- 微信收款码 -->
             <div class="qr-field">
-              <label>微信收款码 URL</label>
-              <input v-model="qrWechat" placeholder="粘贴图片链接（上传后复制URL）" class="qr-url-input" />
+              <label>微信收款码</label>
+              <div class="qr-upload-row">
+                <img v-if="qrWechat" :src="qrWechat" class="qr-thumb" />
+                <div v-else class="qr-thumb-empty">未设置</div>
+                <label class="btn-qr-upload" :class="{ loading: qrWechatUpload }">
+                  {{ qrWechatUpload ? '上传中...' : '📷 上传图片' }}
+                  <input type="file" accept="image/*" style="display:none"
+                    :disabled="qrWechatUpload" @change="handleQrUpload('wechat', $event)" />
+                </label>
+              </div>
             </div>
+
+            <!-- 支付宝收款码 -->
             <div class="qr-field">
-              <label>支付宝收款码 URL</label>
-              <input v-model="qrAlipay" placeholder="粘贴图片链接（上传后复制URL）" class="qr-url-input" />
+              <label>支付宝收款码</label>
+              <div class="qr-upload-row">
+                <img v-if="qrAlipay" :src="qrAlipay" class="qr-thumb" />
+                <div v-else class="qr-thumb-empty">未设置</div>
+                <label class="btn-qr-upload" :class="{ loading: qrAlipayUpload }">
+                  {{ qrAlipayUpload ? '上传中...' : '📷 上传图片' }}
+                  <input type="file" accept="image/*" style="display:none"
+                    :disabled="qrAlipayUpload" @change="handleQrUpload('alipay', $event)" />
+                </label>
+              </div>
             </div>
-            <div class="qr-dialog-tip">💡 将收款码图片上传到图床（如 imgbb.com），复制图片链接粘贴上来</div>
+
             <div class="qr-dialog-btns">
               <button class="btn-cancel" @click="qrDialog=null">取消</button>
-              <button class="btn-save" :disabled="qrSaving" @click="saveQr">
+              <button class="btn-save" :disabled="qrSaving || qrWechatUpload || qrAlipayUpload" @click="saveQr">
                 {{ qrSaving ? '保存中...' : '✅ 保存' }}
               </button>
             </div>
@@ -745,10 +784,13 @@ function switchTab(t) {
 .qr-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .qr-dialog { background: #fff; border-radius: 16px; padding: 20px; width: 100%; max-width: 400px; }
 .qr-dialog-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
-.qr-field { margin-bottom: 12px; }
-.qr-field label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
-.qr-url-input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box; }
-.qr-dialog-tip { font-size: 11px; color: #999; background: #f9f9f9; border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
+.qr-field { margin-bottom: 16px; }
+.qr-field label { font-size: 12px; color: #666; display: block; margin-bottom: 6px; }
+.qr-upload-row { display: flex; align-items: center; gap: 12px; }
+.qr-thumb { width: 80px; height: 80px; object-fit: contain; border: 1px solid #eee; border-radius: 8px; }
+.qr-thumb-empty { width: 80px; height: 80px; background: #f5f5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #bbb; }
+.btn-qr-upload { padding: 10px 18px; background: #07C160; color: #fff; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; user-select: none; }
+.btn-qr-upload.loading { background: #aaa; cursor: not-allowed; }
 .qr-dialog-btns { display: flex; gap: 10px; }
 .btn-cancel { flex: 1; padding: 10px; background: #eee; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
 .btn-save { flex: 2; padding: 10px; background: #333; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
