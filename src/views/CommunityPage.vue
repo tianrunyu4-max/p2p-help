@@ -249,7 +249,7 @@ function closeImagePreview() { showImagePreview.value = false }
     <div class="chat-messages">
 
       <!-- 空状态 -->
-      <div v-else-if="messages.length === 0" class="welcome-area">
+      <div v-if="messages.length === 0" class="welcome-area">
         <div class="welcome-logo">🏪</div>
         <h2 class="welcome-title">1+1社区</h2>
         <p class="welcome-sub">点对点 · 直接打款 · 全程透明</p>
