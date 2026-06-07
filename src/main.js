@@ -5,8 +5,6 @@ import App from './App.vue'
 import './style.css'
 import axios from 'axios'
 
-// Capacitor 本地打包模式：API 请求指向线上服务器
-// Android WebView 用 http://localhost 或 capacitor://localhost
 const isNative = window.location.hostname === 'localhost'
   || window.location.protocol === 'capacitor:'
   || window.location.protocol === 'file:'
@@ -20,3 +18,11 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 app.mount('#app')
+
+// Vue挂载成功 → 淡出加载屏
+window._clearSplashTimer?.()
+const splash = document.getElementById('splash')
+if (splash) {
+  splash.classList.add('hide')
+  setTimeout(() => splash.remove(), 350)
+}
