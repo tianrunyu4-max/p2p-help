@@ -140,6 +140,12 @@ async function toggleFreeze(userId, frozen) {
   loadUsers()
 }
 
+async function deleteUser(userId, userNo) {
+  if (!confirm(`确认删除用户 #${userNo}？此操作不可恢复！`)) return
+  await axios.post('/api/admin/delete-user', { userId })
+  loadUsers()
+}
+
 // 快速创建节点账户
 async function createNode(order) {
   creatingNode.value = true
@@ -574,31 +580,27 @@ function switchTab(t) {
         </div>
 
         <div v-for="u in users" :key="u.id" class="user-row">
-          <!-- 用户ID + 推荐人ID -->
-          <div class="ur-ids">
-            <span class="ur-self">#{{ u.user_no }}</span>
-            <span class="ur-arrow">←</span>
-            <span class="ur-ref">{{ u.referrer_no ? '#'+u.referrer_no : '根用户' }}</span>
+          <!-- 左：ID信息 + 身份 -->
+          <div class="ur-left">
+            <div class="ur-ids">
+              <span class="ur-self">#{{ u.user_no }}</span>
+              <span class="ur-arrow">←</span>
+              <span class="ur-ref">{{ u.referrer_no ? '#'+u.referrer_no : '根用户' }}</span>
+            </div>
+            <div class="ur-badges">
+              <span :class="['ur-role', u.role === 'owner' ? 'owner' : 'agent']">{{ u.role === 'owner' ? '👑 老板' : '👔 代理' }}</span>
+              <span v-if="u.is_exited" class="ur-exited">出局</span>
+              <span v-if="u.is_frozen" class="ur-frozen">冻结</span>
+              <span class="ur-stat-inline">¥{{ u.total_received||0 }} · 推{{ u.invite_used||0 }} · 局{{ u.exited_count||0 }}</span>
+            </div>
           </div>
-          <!-- 身份 + 状态 -->
-          <div class="ur-badges">
-            <span :class="['ur-role', u.role === 'owner' ? 'owner' : 'agent']">
-              {{ u.role === 'owner' ? '👑 老板' : '👔 代理' }}
-            </span>
-            <span v-if="u.is_exited" class="ur-exited">已出局</span>
-            <span v-if="u.is_frozen" class="ur-frozen">已冻结</span>
+          <!-- 右：操作按钮 -->
+          <div class="ur-actions">
+            <button :class="u.is_frozen ? 'btn-unfreeze' : 'btn-freeze'" @click="toggleFreeze(u.id, u.is_frozen)">
+              {{ u.is_frozen ? '解冻' : '冻结' }}
+            </button>
+            <button class="btn-delete" @click="deleteUser(u.id, u.user_no)">删除</button>
           </div>
-          <!-- 数据统计 -->
-          <div class="ur-stats">
-            <span>收款 ¥{{ u.total_received || 0 }}</span>
-            <span>直推 {{ u.invite_used || 0 }}/2</span>
-            <span :class="u.exited_count >= 2 ? 'ur-exited-full' : ''">出局 {{ u.exited_count || 0 }}/2</span>
-          </div>
-          <!-- 操作 -->
-          <button
-            :class="u.is_frozen ? 'btn-unfreeze' : 'btn-freeze'"
-            @click="toggleFreeze(u.id, u.is_frozen)"
-          >{{ u.is_frozen ? '解冻' : '冻结' }}</button>
         </div>
         <p v-if="!users.length && !loading" class="empty">暂无已激活用户</p>
       </template>
@@ -696,21 +698,23 @@ function switchTab(t) {
 .order-actions { text-align: right; }
 .btn-force { padding: 6px 14px; background: #f0a500; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
 /* 用户管理表格 */
-.user-row { background:#fff; border:1px solid #f0f0f0; border-radius:12px; padding:12px 14px; margin-bottom:10px; display:flex; flex-direction:column; gap:6px; }
-.ur-ids { display:flex; align-items:center; gap:6px; font-size:15px; font-weight:700; }
+.user-row { background:#fff; border:1px solid #f0f0f0; border-radius:10px; padding:8px 12px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.ur-left { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
+.ur-ids { display:flex; align-items:center; gap:5px; font-size:14px; font-weight:700; }
 .ur-self { color:#333; }
 .ur-arrow { color:#ccc; font-size:12px; }
-.ur-ref { color:#888; font-size:13px; font-weight:400; }
-.ur-badges { display:flex; gap:6px; flex-wrap:wrap; }
-.ur-role { font-size:12px; padding:2px 10px; border-radius:10px; font-weight:600; }
+.ur-ref { color:#888; font-size:12px; font-weight:400; }
+.ur-badges { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.ur-role { font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
 .ur-role.owner { background:#fffbeb; color:#b7791f; border:1px solid #f6e05e; }
 .ur-role.agent { background:#ebf8ff; color:#2b6cb0; border:1px solid #90cdf4; }
-.ur-exited { font-size:12px; padding:2px 8px; border-radius:10px; background:#e9d8fd; color:#553c9a; }
-.ur-frozen { font-size:12px; padding:2px 8px; border-radius:10px; background:#fed7d7; color:#9b2c2c; }
-.ur-stats { display:flex; gap:14px; font-size:13px; color:#888; }
-.ur-exited-full { color:#e53e3e; font-weight:600; }
-.btn-freeze { padding: 6px 14px; background: #e53e3e; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
-.btn-unfreeze { padding: 6px 14px; background: #48bb78; color: #fff; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.ur-exited { font-size:11px; padding:2px 6px; border-radius:8px; background:#e9d8fd; color:#553c9a; }
+.ur-frozen { font-size:11px; padding:2px 6px; border-radius:8px; background:#fed7d7; color:#9b2c2c; }
+.ur-stat-inline { font-size:11px; color:#aaa; }
+.ur-actions { display:flex; gap:5px; flex-shrink:0; }
+.btn-freeze { padding:5px 10px; background:#e53e3e; color:#fff; border:none; border-radius:7px; font-size:12px; cursor:pointer; }
+.btn-unfreeze { padding:5px 10px; background:#48bb78; color:#fff; border:none; border-radius:7px; font-size:12px; cursor:pointer; }
+.btn-delete { padding:5px 10px; background:#fff; color:#e53e3e; border:1px solid #e53e3e; border-radius:7px; font-size:12px; cursor:pointer; }
 
 /* 平级节点管理 */
 .pj-section { background:#fff; border-radius:14px; border:1px solid #f0f0f0; padding:16px; margin-bottom:14px; }

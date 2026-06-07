@@ -143,6 +143,14 @@ export async function handleAdmin(request, env, pathname) {
     return ok({ userId, is_frozen: !!frozen })
   }
 
+  // POST /api/admin/delete-user — 删除用户
+  if (pathname === '/api/admin/delete-user' && request.method === 'POST') {
+    const { userId } = await request.json()
+    if (!userId) return err('userId 必填')
+    await db.from('users').delete().eq('id', userId)
+    return ok({ deleted: userId })
+  }
+
   // GET /api/admin/ai-reviews — AI介入列表
   if (pathname === '/api/admin/ai-reviews' && request.method === 'GET') {
     const { data: tasks } = await db.from('payment_tasks')
