@@ -460,48 +460,6 @@ function switchTab(t) {
           </button>
         </div>
 
-        <!-- QR 设置弹窗 -->
-        <div v-if="qrDialog" class="qr-overlay" @click.self="qrDialog=null">
-          <div class="qr-dialog">
-            <div class="qr-dialog-title">设置收款码 · #{{ qrDialog.user_no }}</div>
-
-            <!-- 微信收款码 -->
-            <div class="qr-field">
-              <label>微信收款码</label>
-              <div class="qr-upload-row">
-                <img v-if="qrWechat" :src="qrWechat" class="qr-thumb" />
-                <div v-else class="qr-thumb-empty">未设置</div>
-                <label class="btn-qr-upload" :class="{ loading: qrWechatUpload }">
-                  {{ qrWechatUpload ? '上传中...' : '📷 上传图片' }}
-                  <input type="file" accept="image/*" style="display:none"
-                    :disabled="qrWechatUpload" @change="handleQrUpload('wechat', $event)" />
-                </label>
-              </div>
-            </div>
-
-            <!-- 支付宝收款码 -->
-            <div class="qr-field">
-              <label>支付宝收款码</label>
-              <div class="qr-upload-row">
-                <img v-if="qrAlipay" :src="qrAlipay" class="qr-thumb" />
-                <div v-else class="qr-thumb-empty">未设置</div>
-                <label class="btn-qr-upload" :class="{ loading: qrAlipayUpload }">
-                  {{ qrAlipayUpload ? '上传中...' : '📷 上传图片' }}
-                  <input type="file" accept="image/*" style="display:none"
-                    :disabled="qrAlipayUpload" @change="handleQrUpload('alipay', $event)" />
-                </label>
-              </div>
-            </div>
-
-            <div class="qr-dialog-btns">
-              <button class="btn-cancel" @click="qrDialog=null">取消</button>
-              <button class="btn-save" :disabled="qrSaving || qrWechatUpload || qrAlipayUpload" @click="saveQr">
-                {{ qrSaving ? '保存中...' : '✅ 保存' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
         <!-- 说明 -->
         <div class="node-tips">
           <div class="tip">💡 节点账户需上传微信/支付宝收款码才能收到平级奖</div>
@@ -645,6 +603,43 @@ function switchTab(t) {
         <p v-if="!users.length && !loading" class="empty">暂无已激活用户</p>
       </template>
     </template>
+
+    <!-- QR 设置弹窗（全局，不依赖任何tab） -->
+    <div v-if="qrDialog" class="qr-overlay" @click.self="qrDialog=null">
+      <div class="qr-dialog">
+        <div class="qr-dialog-title">设置收款码 · #{{ qrDialog.user_no }}</div>
+        <div class="qr-field">
+          <label>微信收款码</label>
+          <div class="qr-upload-row">
+            <img v-if="qrWechat" :src="qrWechat" class="qr-thumb" />
+            <div v-else class="qr-thumb-empty">未设置</div>
+            <label class="btn-qr-upload" :class="{ loading: qrWechatUpload }">
+              {{ qrWechatUpload ? '上传中...' : '📷 上传图片' }}
+              <input type="file" accept="image/*" style="display:none"
+                :disabled="qrWechatUpload" @change="handleQrUpload('wechat', $event)" />
+            </label>
+          </div>
+        </div>
+        <div class="qr-field">
+          <label>支付宝收款码</label>
+          <div class="qr-upload-row">
+            <img v-if="qrAlipay" :src="qrAlipay" class="qr-thumb" />
+            <div v-else class="qr-thumb-empty">未设置</div>
+            <label class="btn-qr-upload" :class="{ loading: qrAlipayUpload }">
+              {{ qrAlipayUpload ? '上传中...' : '📷 上传图片' }}
+              <input type="file" accept="image/*" style="display:none"
+                :disabled="qrAlipayUpload" @change="handleQrUpload('alipay', $event)" />
+            </label>
+          </div>
+        </div>
+        <div class="qr-dialog-btns">
+          <button class="btn-cancel" @click="qrDialog=null">取消</button>
+          <button class="btn-save" :disabled="qrSaving || qrWechatUpload || qrAlipayUpload" @click="saveQr">
+            {{ qrSaving ? '保存中...' : '✅ 保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

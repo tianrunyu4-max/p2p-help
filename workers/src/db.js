@@ -28,7 +28,7 @@ export async function getShop(db, shopId) {
 // 生成6位纯数字ID（确保唯一）
 export async function generateUserId(db) {
   for (let i = 0; i < 10; i++) {
-    const no = String(Math.floor(100000 + Math.random() * 900000))
+    const no = '8' + String(Math.floor(10000 + Math.random() * 90000))
     const { data } = await db.from('users').select('id').eq('user_no', no).maybeSingle()
     if (!data) return no
   }
