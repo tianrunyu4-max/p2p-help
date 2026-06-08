@@ -360,7 +360,7 @@ function switchTab(t) {
         <!-- 2个平级节点账号 -->
         <div class="pj-section">
           <div class="pj-title">📊 平级节点账号（2个）</div>
-          <div class="pj-sub">新用户激活时，平级奖¥60×2打给这2个节点，节点自动给链上用户记余额</div>
+          <div class="pj-sub">新用户激活时，平级奖¥30×2打给这2个节点，节点自动给链上用户每层记+5元余额</div>
           <div class="pj-nodes">
             <div v-for="order in [1,2]" :key="order" class="pj-node-slot">
               <div class="pj-node-order">节点{{ order }}</div>

@@ -104,7 +104,7 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
       <!-- 总金额展示 -->
       <div class="amount-card">
         <div class="amount-label">参与总金额</div>
-        <div class="amount-big">¥260</div>
+        <div class="amount-big">¥200</div>
         <div class="amount-sub">全部点对点直接打款给真实用户</div>
       </div>
 
@@ -136,14 +136,14 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
             <span class="bi-icon">📊</span>
             <div>
               <div class="bi-name">平级奖</div>
-              <div class="bi-desc">沿邀请链平级分配</div>
+              <div class="bi-desc">沿邀请链向上12层，每层5元</div>
             </div>
           </div>
-          <div class="bi-amount">¥120</div>
+          <div class="bi-amount">¥60</div>
         </div>
         <div class="breakdown-total">
           <span>合计</span>
-          <span class="total-num">¥260</span>
+          <span class="total-num">¥200</span>
         </div>
       </div>
 
