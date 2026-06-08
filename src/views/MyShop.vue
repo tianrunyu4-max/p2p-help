@@ -402,18 +402,18 @@ function fmtTime(ts) {
         <div class="pj-balance-card">
           <div class="pj-bal-label">平级余额</div>
           <div class="pj-bal-amount">¥{{ pingjiiBalance.toFixed(0) }}</div>
-          <div class="pj-bal-sub">每次有人在你链上激活，自动 +¥10</div>
-          <div v-if="pingjiiBalance >= 60">
+          <div class="pj-bal-sub">每次有人在你链上激活，自动 +¥5</div>
+          <div v-if="pingjiiBalance >= 30">
             <button class="pj-withdraw-btn" :disabled="pingjiiWithdrawing" @click="requestPingjiiWithdraw">
-              {{ pingjiiWithdrawing ? '申请中...' : '💸 申请提现 ¥60' }}
+              {{ pingjiiWithdrawing ? '申请中...' : '💸 申请提现 ¥30' }}
             </button>
             <div v-if="pingjiiWithdrawMsg" class="pj-withdraw-msg">{{ pingjiiWithdrawMsg }}</div>
           </div>
           <div v-else class="pj-bal-progress">
             <div class="pj-prog-bar">
-              <div class="pj-prog-fill" :style="{ width: Math.min(pingjiiBalance/60*100, 100)+'%' }"></div>
+              <div class="pj-prog-fill" :style="{ width: Math.min(pingjiiBalance/30*100, 100)+'%' }"></div>
             </div>
-            <span class="pj-prog-tip">还差 ¥{{ Math.max(0, 60-pingjiiBalance).toFixed(0) }} 可提现</span>
+            <span class="pj-prog-tip">还差 ¥{{ Math.max(0, 30-pingjiiBalance).toFixed(0) }} 可提现</span>
           </div>
         </div>
 

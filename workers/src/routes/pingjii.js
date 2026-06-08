@@ -13,7 +13,7 @@ import { authMiddleware } from './auth.js'
 import { creditPingjiiChain } from './activate.js'
 import { ok, err } from '../utils/response.js'
 
-const WITHDRAW_MIN = 60  // 最低提现金额
+const WITHDRAW_MIN = 30  // 最低提现金额
 
 export async function handlePingjii(request, env, pathname) {
   if (!pathname.startsWith('/api/pingjii') && !pathname.startsWith('/api/admin/create-pingjii-node')
