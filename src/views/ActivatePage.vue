@@ -21,9 +21,11 @@ onMounted(async () => {
 })
 
 function getTypeLabel(type) {
-  if (type === 'jian_dian') return { label: '见点奖', color: '#f0a500' }
-  if (type === 'bang_fu')   return { label: '帮扶奖', color: '#48bb78' }
-  return { label: `平级第${type.replace('ping_ji_','')}层`, color: '#4299e1' }
+  if (type === 'jian_dian')       return { label: '见点奖',   color: '#f0a500' }
+  if (type === 'bang_fu')         return { label: '帮扶奖',   color: '#48bb78' }
+  if (type === 'bang_fu_subsidy') return { label: '帮扶奖',   color: '#48bb78' }
+  if (type === 'bang_fu_admin')   return { label: '帮扶预留', color: '#a0aec0' }
+  return { label: `平级第${type.replace('ping_ji_node_','')}层`, color: '#4299e1' }
 }
 
 function statusText(status) {

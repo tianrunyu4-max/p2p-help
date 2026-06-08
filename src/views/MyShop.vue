@@ -370,7 +370,7 @@ function fmtTime(ts) {
             <span class="feature-icon">🫱</span>
             <div class="feature-content">
               <div class="feature-name">帮扶奖 (30元×2)</div>
-              <div class="feature-desc">新人激活时，向老板邀请的已出局2位直推各付 30 元帮扶奖</div>
+              <div class="feature-desc">新人激活时，打给老板的2位出局直推；若未出局则匹配给生活补贴参与者</div>
             </div>
           </div>
           <div class="feature-item">
