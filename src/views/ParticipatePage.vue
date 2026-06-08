@@ -64,10 +64,11 @@ async function loadOrder() {
 }
 
 function getTaskMeta(type) {
-  if (type === 'jian_dian')      return { label: '见点奖', color: '#f0a500', icon: '👑', desc: '给老板' }
-  if (type === 'bang_fu')        return { label: '帮扶奖', color: '#48bb78', icon: '🤝', desc: '给直推老板' }
-  if (type === 'bang_fu_admin')  return { label: '帮扶预留', color: '#a0aec0', icon: '🏦', desc: '管理员代收' }
-  return { label: `平级第${type.replace('ping_ji_','')}层`, color: '#4299e1', icon: '📊', desc: '平级奖' }
+  if (type === 'jian_dian')        return { label: '见点奖',   color: '#f0a500', icon: '👑', desc: '给老板' }
+  if (type === 'bang_fu')          return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', desc: '给出局老板' }
+  if (type === 'bang_fu_subsidy')  return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', desc: '给生活补贴参与者' }
+  if (type === 'bang_fu_admin')    return { label: '帮扶预留', color: '#a0aec0', icon: '🏦', desc: '预留→给生活补贴参与者' }
+  return { label: `平级第${type.replace('ping_ji_node_','')}层`, color: '#4299e1', icon: '📊', desc: '平级奖' }
 }
 
 function statusText(s) {
@@ -125,7 +126,7 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
             <span class="bi-icon">🤝</span>
             <div>
               <div class="bi-name">帮扶奖</div>
-              <div class="bi-desc">给老板的2位出局直推</div>
+              <div class="bi-desc">给出局直推 / 生活补贴参与者</div>
             </div>
           </div>
           <div class="bi-amount">¥30 × 2</div>

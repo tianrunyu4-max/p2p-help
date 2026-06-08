@@ -39,11 +39,12 @@ const hasWechat = computed(() => !!task.value?.receiver_wechat_qr)
 const hasAlipay = computed(() => !!task.value?.receiver_alipay_qr)
 
 function getTypeMeta(type) {
-  if (type === 'jian_dian')     return { label: '见点奖', color: '#f0a500', icon: '👑', to: '老板直接收款' }
-  if (type === 'bang_fu')       return { label: '帮扶奖', color: '#48bb78', icon: '🤝', to: '出局老板直接收款' }
-  if (type === 'bang_fu_admin') return { label: '帮扶预留', color: '#a0aec0', icon: '🏦', to: '管理员代收（等直推出局后转给他）' }
-  const lv = type.replace('ping_ji_', '')
-  return { label: `平级第${lv}层`, color: '#4299e1', icon: '📊', to: `第${lv}层推荐人直接收款` }
+  if (type === 'jian_dian')        return { label: '见点奖',   color: '#f0a500', icon: '👑', to: '老板直接收款' }
+  if (type === 'bang_fu')          return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', to: '出局老板直接收款' }
+  if (type === 'bang_fu_subsidy')  return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', to: '生活补贴参与者直接收款' }
+  if (type === 'bang_fu_admin')    return { label: '帮扶预留', color: '#a0aec0', icon: '🏦', to: '预留给生活补贴参与者（管理员代转）' }
+  const lv = type.replace('ping_ji_node_', '')
+  return { label: `平级第${lv}层`, color: '#4299e1', icon: '📊', to: `平级奖直接收款` }
 }
 
 async function handleFileSelect(e) {
