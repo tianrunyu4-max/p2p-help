@@ -1,10 +1,10 @@
 /**
  * activate.js — 激活匹配核心算法
  *
- * 激活金 200元，全部 P2P 点对点，同时触发：
- *   见点    80   → 老板（永久）
+ * 激活金 230元，全部 P2P 点对点，同时触发：
+ *   见点    50   → 老板（永久）
  *   帮扶    30×2 → 老板的2个直推中已出局者；未出局→平级节点1代收
- *   平级    30×2 → 2个平级节点（节点收款后系统自动给链上各6人记+5余额）
+ *   平级    60×2 → 2个平级节点（节点收款后系统自动给链上各6人记+10余额）
  *
  * 滑落+贡献逻辑：
  *   没有滑落 → contribution_slot='first'  → 第1个邀请贡献到原模型（invite_used=0触发）
@@ -15,10 +15,10 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const ACTIVATE_AMOUNT   = 200
-const JIAN_DIAN         = 80
+const ACTIVATE_AMOUNT   = 230
+const JIAN_DIAN         = 50
 const BANG_FU           = 30
-const PINGJII_NODE_AMT  = 30   // 每个平级节点收30元
+const PINGJII_NODE_AMT  = 60   // 每个平级节点收60元
 const REPURCHASE_LIMIT  = 900
 
 export async function handleActivate(request, env, pathname) {
@@ -313,7 +313,7 @@ export async function creditPingjiiChain(db, payerId, nodeOrder) {
     visited.add(currentId)
     const u = await getUser(db, currentId)
     if (!u) break
-    const newBal = parseFloat(u.pingjii_balance || 0) + 5
+    const newBal = parseFloat(u.pingjii_balance || 0) + 10
     await db.from('users').update({ pingjii_balance: newBal }).eq('id', u.id)
     currentId = u.referrer_id
   }

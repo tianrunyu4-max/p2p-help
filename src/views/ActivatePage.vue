@@ -41,7 +41,7 @@ function statusText(status) {
   <div class="page">
     <div class="page-header">
       <button class="back-btn" @click="router.back()">←</button>
-      <h2>激活 · 200元</h2>
+      <h2>激活 · 230元</h2>
     </div>
 
     <div v-if="loading" class="loading">加载中...</div>
