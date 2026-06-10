@@ -12,6 +12,12 @@ const isNative = window.location.hostname === 'localhost'
 
 if (isNative) {
   axios.defaults.baseURL = 'https://p2p.ai-airdrop.uk'
+
+  // ⚠️ 必须调用：告诉更新插件当前 Bundle 可以正常运行
+  // 不调用的话下次更新会触发回滚
+  import('@capgo/capacitor-updater').then(({ CapacitorUpdater }) => {
+    CapacitorUpdater.notifyAppReady().catch(() => {})
+  }).catch(() => {})
 }
 
 const app = createApp(App)

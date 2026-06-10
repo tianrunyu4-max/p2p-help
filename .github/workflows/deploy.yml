@@ -25,12 +25,22 @@ jobs:
           echo "{\"v\":\"$(date +%s)\"}" > public/version.json
           npm run build
 
-      # 2. 安装 Worker 依赖
+      # 2. 打包 APK 热更新 bundle（构建完成后，把 dist/ 打成 zip 放回 dist/）
+      #    注意：先 zip，再把 zip 移入 dist/，否则 zip 会包含自身
+      - name: 生成 bundle.zip（APK 热更新用）
+        run: |
+          cd dist
+          zip -r ../bundle.zip .
+          cd ..
+          mv bundle.zip dist/bundle.zip
+          echo "✅ bundle.zip 已生成：$(du -sh dist/bundle.zip | cut -f1)"
+
+      # 3. 安装 Worker 依赖
       - name: 安装 Worker 依赖
         working-directory: workers
         run: npm ci
 
-      # 3. 部署 Worker（含前端静态资源）
+      # 4. 部署 Worker（含前端静态资源 + bundle.zip）
       - name: 部署到 Cloudflare Workers
         working-directory: workers
         env:
