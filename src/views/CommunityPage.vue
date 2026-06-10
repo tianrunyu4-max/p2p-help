@@ -176,7 +176,11 @@ function autoResize() {
 }
 function resetTextareaHeight() { const el = textareaRef.value; if (el) el.style.height = 'auto' }
 function setQuickInput(text) { inputText.value = text; nextTick(() => textareaRef.value?.focus()) }
-function setChatMode(m) { chatMode.value = m; localStorage.setItem('chat_mode', m) }
+function setChatMode(m) {
+  chatMode.value = m
+  localStorage.setItem('chat_mode', m)
+  if (m === 'zero') onZeroModeActivate()
+}
 function activateVideo(id) { activeVideoIds.value = new Set([...activeVideoIds.value, id]) }
 function selectImage() { showAttachMenu.value = false; imageInput.value?.click() }
 function selectVideo() { showAttachMenu.value = false; videoInput.value?.click() }
@@ -215,6 +219,122 @@ async function handleAvatarUpload(e) {
 
 function previewImage(url) { previewImageUrl.value = url; showImagePreview.value = true }
 function closeImagePreview() { showImagePreview.value = false }
+
+// ── 0撸 信息板 ────────────────────────────────────────────────
+const zeroPosts    = ref([])
+const zeroLoading  = ref(false)
+const zeroPage     = ref(1)
+const zeroNoMore   = ref(false)
+
+const showZeroPublish = ref(false)
+const zeroContent  = ref('')
+const zeroImages   = ref([])   // [{url, file}] 最多2张
+const zeroTodayCount = ref(0)
+const zeroSubmitting = ref(false)
+const zeroImgInput = ref(null)
+
+async function loadZeroPosts(reset = false) {
+  if (zeroLoading.value) return
+  if (reset) { zeroPage.value = 1; zeroNoMore.value = false }
+  zeroLoading.value = true
+  try {
+    const res = await fetch(apiUrl(`/api/zero-posts?page=${zeroPage.value}`))
+    const data = await res.json()
+    const list = data.data || []
+    if (reset) zeroPosts.value = list
+    else zeroPosts.value = [...zeroPosts.value, ...list]
+    if (list.length < 20) zeroNoMore.value = true
+    else zeroPage.value++
+  } catch (e) { /* ignore */ }
+  finally { zeroLoading.value = false }
+}
+
+async function openZeroPublish() {
+  // 获取今日发帖数
+  const token = localStorage.getItem('token')
+  if (!token) { alert('请先登录'); return }
+  try {
+    const res = await fetch(apiUrl('/api/zero-posts/today-count'), {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    const data = await res.json()
+    zeroTodayCount.value = data.data?.count || 0
+  } catch {}
+  zeroContent.value = ''
+  zeroImages.value = []
+  showZeroPublish.value = true
+}
+
+function selectZeroImage() {
+  if (zeroImages.value.length >= 2) { alert('最多2张图片'); return }
+  zeroImgInput.value?.click()
+}
+
+async function handleZeroImageSelect(e) {
+  const file = e.target.files[0]; if (!file) return
+  if (file.size > 10*1024*1024) { alert('图片最大10MB'); e.target.value=''; return }
+  const localUrl = URL.createObjectURL(file)
+  // 先显示本地预览
+  zeroImages.value.push({ url: localUrl, uploading: true, file })
+  e.target.value = ''
+  const idx = zeroImages.value.length - 1
+  try {
+    const r = await uploadImage(file)
+    zeroImages.value[idx] = { url: r.url, uploading: false }
+    URL.revokeObjectURL(localUrl)
+  } catch (err) {
+    zeroImages.value.splice(idx, 1)
+    URL.revokeObjectURL(localUrl)
+    alert('上传失败: ' + err.message)
+  }
+}
+
+function removeZeroImage(idx) {
+  zeroImages.value.splice(idx, 1)
+}
+
+async function submitZeroPost() {
+  const content = zeroContent.value.trim()
+  const imgs = zeroImages.value.filter(i => !i.uploading).map(i => i.url)
+  if (!content && imgs.length === 0) { alert('请填写内容或上传图片'); return }
+  if (content.length > 30) { alert('文字最多30字'); return }
+  if (zeroTodayCount.value >= 20) { alert('今日已达20条上限'); return }
+  const token = localStorage.getItem('token')
+  if (!token) { alert('请先登录'); return }
+  zeroSubmitting.value = true
+  try {
+    const res = await fetch(apiUrl('/api/zero-posts'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ content, images: imgs })
+    })
+    const data = await res.json()
+    if (data.code === 200) {
+      showZeroPublish.value = false
+      loadZeroPosts(true)
+    } else {
+      alert(data.message || '发布失败')
+    }
+  } catch (e) { alert('发布失败: ' + e.message) }
+  finally { zeroSubmitting.value = false }
+}
+
+function onZeroModeActivate() {
+  loadZeroPosts(true)
+}
+
+function formatZeroTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const now = new Date()
+  const diffMs = now - d
+  const diffMin = Math.floor(diffMs / 60000)
+  if (diffMin < 1) return '刚刚'
+  if (diffMin < 60) return diffMin + '分钟前'
+  const diffH = Math.floor(diffMin / 60)
+  if (diffH < 24) return diffH + '小时前'
+  return `${d.getMonth()+1}/${d.getDate()}`
+}
 </script>
 
 <template>
@@ -237,8 +357,8 @@ function closeImagePreview() { showImagePreview.value = false }
         🤝 自愿参与
       </button>
     </div>
-    <!-- 消息流 -->
-    <div class="chat-messages">
+    <!-- 消息流 / 0撸 feed -->
+    <div class="chat-messages" v-show="chatMode !== 'zero'">
 
       <!-- 空状态 -->
       <div v-if="messages.length === 0" class="welcome-area">
@@ -356,14 +476,38 @@ function closeImagePreview() { showImagePreview.value = false }
       <div ref="messagesEnd"></div>
     </div>
 
+    <!-- 0撸 信息板 feed（chatMode === 'zero'时显示） -->
+    <div v-show="chatMode === 'zero'" class="zero-feed">
+      <div v-if="zeroLoading && zeroPosts.length === 0" class="zero-empty">加载中...</div>
+      <div v-else-if="zeroPosts.length === 0" class="zero-empty">暂无信息，快来发第一条吧 🆓</div>
+      <div v-for="post in zeroPosts" :key="post.id" class="zero-post-card">
+        <div class="zero-post-header">
+          <span class="zero-user-no">用户 {{ post.user_no }}</span>
+          <span class="zero-post-time">{{ formatZeroTime(post.created_at) }}</span>
+        </div>
+        <p v-if="post.content" class="zero-post-content">{{ post.content }}</p>
+        <div v-if="post.images && post.images.length" class="zero-post-images">
+          <img v-for="(img, i) in post.images" :key="i" :src="img" class="zero-img" @click="previewImage(img)" />
+        </div>
+      </div>
+      <div v-if="!zeroNoMore && zeroPosts.length > 0" class="zero-load-more" @click="loadZeroPosts()">
+        {{ zeroLoading ? '加载中...' : '加载更多' }}
+      </div>
+      <div v-else-if="zeroPosts.length > 0" class="zero-no-more">已加载全部</div>
+
+      <!-- 发布按钮 -->
+      <button class="zero-publish-fab" @click="openZeroPublish">✏️ 发布</button>
+    </div>
+
     <!-- 聊天模式切换 -->
     <div class="chat-mode-bar">
       <button :class="['mode-btn', chatMode==='free'?'mode-active-free':'']" @click="setChatMode('free')">💬 自由聊天</button>
       <button :class="['mode-btn', chatMode==='ai'?'mode-active-ai':'']" @click="setChatMode('ai')">🤖 AI问答</button>
+      <button :class="['mode-btn', chatMode==='zero'?'mode-active-zero':'']" @click="setChatMode('zero')">🆓 0撸</button>
     </div>
 
-    <!-- 输入栏 -->
-    <div class="input-area">
+    <!-- 输入栏（0撸模式时隐藏） -->
+    <div class="input-area" v-show="chatMode !== 'zero'">
       <button class="icon-btn attach-btn" @click="showAttachMenu = !showAttachMenu">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
@@ -383,9 +527,9 @@ function closeImagePreview() { showImagePreview.value = false }
       </button>
     </div>
 
-    <!-- 附件菜单 -->
+    <!-- 附件菜单（仅聊天时显示） -->
     <transition name="attach-pop">
-      <div v-if="showAttachMenu" class="attach-menu">
+      <div v-if="showAttachMenu && chatMode !== 'zero'" class="attach-menu">
         <button class="attach-item" @click="selectImage">
           <div class="attach-icon" style="background:#07C160">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -404,12 +548,57 @@ function closeImagePreview() { showImagePreview.value = false }
     <input ref="imageInput" type="file" accept="image/*" style="display:none" @change="handleImageSelect" />
     <input ref="videoInput" type="file" accept="video/mp4,video/webm,video/quicktime" style="display:none" @change="handleVideoSelect" />
     <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="handleAvatarUpload" />
+    <input ref="zeroImgInput" type="file" accept="image/*" style="display:none" @change="handleZeroImageSelect" />
 
     <!-- 图片预览 -->
     <transition name="fade">
       <div v-if="showImagePreview" class="preview-overlay" @click="closeImagePreview">
         <img :src="previewImageUrl" class="preview-full" @click.stop />
         <button class="preview-close" @click="closeImagePreview">✕</button>
+      </div>
+    </transition>
+
+    <!-- 0撸 发布弹窗 -->
+    <transition name="fade">
+      <div v-if="showZeroPublish" class="zero-modal-overlay" @click.self="showZeroPublish=false">
+        <div class="zero-modal">
+          <div class="zero-modal-header">
+            <span>发布0撸信息</span>
+            <button class="zero-modal-close" @click="showZeroPublish=false">✕</button>
+          </div>
+          <div class="zero-modal-body">
+            <div class="zero-quota">今日已发 {{ zeroTodayCount }}/20 条</div>
+            <div class="zero-textarea-wrap">
+              <textarea
+                v-model="zeroContent"
+                class="zero-textarea"
+                placeholder="分享0撸薅羊毛信息（最多30字）"
+                maxlength="30"
+                rows="3"
+              ></textarea>
+              <span class="zero-char-count">{{ zeroContent.length }}/30</span>
+            </div>
+            <!-- 图片预览区 -->
+            <div class="zero-img-list">
+              <div v-for="(img, idx) in zeroImages" :key="idx" class="zero-img-thumb">
+                <img :src="img.url" class="zero-thumb-img" />
+                <div v-if="img.uploading" class="zero-thumb-uploading">
+                  <div class="upload-spin"></div>
+                </div>
+                <button class="zero-thumb-del" @click="removeZeroImage(idx)">✕</button>
+              </div>
+              <button v-if="zeroImages.length < 2" class="zero-add-img" @click="selectZeroImage">
+                <span>📷</span><span>添加图片</span>
+              </button>
+            </div>
+          </div>
+          <div class="zero-modal-footer">
+            <button class="zero-cancel-btn" @click="showZeroPublish=false">取消</button>
+            <button class="zero-submit-btn" :disabled="zeroSubmitting" @click="submitZeroPost">
+              {{ zeroSubmitting ? '发布中...' : '发布' }}
+            </button>
+          </div>
+        </div>
       </div>
     </transition>
   </div>
@@ -496,6 +685,44 @@ function closeImagePreview() { showImagePreview.value = false }
 .mode-btn { flex:1; padding:7px 0; border:1.5px solid #e0e0e0; border-radius:20px; background:#f7f7f7; font-size:13px; color:#888; cursor:pointer; font-weight:500; }
 .mode-active-free { background:#e8f5e9; border-color:#07C160; color:#07C160; font-weight:700; }
 .mode-active-ai   { background:#e3f0ff; border-color:#1976D2; color:#1976D2; font-weight:700; }
+.mode-active-zero { background:#fff8e1; border-color:#f59e0b; color:#d97706; font-weight:700; }
+
+/* ── 0撸 feed ─────────────────────────────────────────── */
+.zero-feed { flex:1; overflow-y:auto; padding:12px 14px 80px; display:flex; flex-direction:column; gap:10px; position:relative; scrollbar-width:none; }
+.zero-feed::-webkit-scrollbar { display:none; }
+.zero-empty { text-align:center; color:#aaa; padding:40px 0; font-size:14px; }
+.zero-post-card { background:#fff; border:1px solid #f0f0f0; border-radius:12px; padding:12px 14px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.zero-post-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.zero-user-no { font-size:12px; font-weight:600; color:#666; background:#f5f5f5; padding:2px 8px; border-radius:10px; }
+.zero-post-time { font-size:11px; color:#bbb; }
+.zero-post-content { font-size:15px; color:#222; line-height:1.6; margin:0 0 8px; word-break:break-all; }
+.zero-post-images { display:flex; gap:8px; flex-wrap:wrap; }
+.zero-img { width:100px; height:100px; object-fit:cover; border-radius:8px; cursor:pointer; border:1px solid #eee; }
+.zero-load-more { text-align:center; color:#1976D2; font-size:13px; padding:10px; cursor:pointer; }
+.zero-no-more { text-align:center; color:#ccc; font-size:12px; padding:8px; }
+.zero-publish-fab { position:fixed; right:20px; bottom:80px; width:auto; padding:10px 20px; background:linear-gradient(135deg,#f59e0b,#fcd34d); border:none; border-radius:24px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 14px rgba(245,158,11,.4); z-index:100; }
+
+/* ── 0撸 发布弹窗 ─────────────────────────────────────── */
+.zero-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9000; display:flex; align-items:flex-end; justify-content:center; }
+.zero-modal { background:#fff; width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:0 0 env(safe-area-inset-bottom); max-height:80vh; overflow-y:auto; }
+.zero-modal-header { display:flex; justify-content:space-between; align-items:center; padding:16px 18px 12px; border-bottom:1px solid #f0f0f0; font-size:16px; font-weight:700; color:#333; }
+.zero-modal-close { background:none; border:none; font-size:18px; cursor:pointer; color:#888; }
+.zero-modal-body { padding:14px 18px; }
+.zero-quota { font-size:12px; color:#f59e0b; font-weight:600; margin-bottom:10px; }
+.zero-textarea-wrap { position:relative; margin-bottom:12px; }
+.zero-textarea { width:100%; border:1.5px solid #e0e0e0; border-radius:10px; padding:10px 12px; font-size:15px; line-height:1.5; resize:none; outline:none; font-family:inherit; box-sizing:border-box; background:#fafafa; }
+.zero-textarea:focus { border-color:#f59e0b; background:#fff; }
+.zero-char-count { position:absolute; right:10px; bottom:8px; font-size:11px; color:#bbb; }
+.zero-img-list { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.zero-img-thumb { position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; }
+.zero-thumb-img { width:100%; height:100%; object-fit:cover; }
+.zero-thumb-uploading { position:absolute; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; }
+.zero-thumb-del { position:absolute; top:2px; right:2px; width:18px; height:18px; background:rgba(0,0,0,.5); border:none; border-radius:50%; color:#fff; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.zero-add-img { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:72px; height:72px; border:1.5px dashed #ccc; border-radius:8px; background:#fafafa; cursor:pointer; font-size:12px; color:#999; }
+.zero-modal-footer { display:flex; gap:10px; padding:10px 18px 16px; }
+.zero-cancel-btn { flex:1; padding:11px; border:1.5px solid #e0e0e0; border-radius:10px; background:#fff; font-size:15px; color:#666; cursor:pointer; }
+.zero-submit-btn { flex:2; padding:11px; border:none; border-radius:10px; background:linear-gradient(135deg,#f59e0b,#fbbf24); color:#fff; font-size:15px; font-weight:700; cursor:pointer; }
+.zero-submit-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 .input-area { display:flex; align-items:flex-end; gap:8px; padding:8px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid rgba(0,0,0,.07); flex-shrink:0; position:relative; }
 .textarea-wrap { flex:1; background:#f0f2f5; border-radius:26px; padding:13px 18px; min-height:52px; display:flex; align-items:center; }
