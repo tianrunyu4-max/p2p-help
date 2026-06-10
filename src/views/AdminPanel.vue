@@ -589,6 +589,7 @@ function switchTab(t) {
             </div>
             <div class="ur-badges">
               <span :class="['ur-role', u.role === 'owner' ? 'owner' : 'agent']">{{ u.role === 'owner' ? '👑 老板' : '👔 代理' }}</span>
+              <span v-if="u.current_tier" :class="['ur-tier', u.current_tier.toLowerCase()]">{{ u.current_tier }}</span>
               <span v-if="u.is_exited" class="ur-exited">出局</span>
               <span v-if="u.is_frozen" class="ur-frozen">冻结</span>
               <span class="ur-stat-inline">¥{{ u.total_received||0 }} · 推{{ u.invite_used||0 }} · 局{{ u.exited_count||0 }}</span>
@@ -710,6 +711,10 @@ function switchTab(t) {
 .ur-role.agent { background:#ebf8ff; color:#2b6cb0; border:1px solid #90cdf4; }
 .ur-exited { font-size:11px; padding:2px 6px; border-radius:8px; background:#e9d8fd; color:#553c9a; }
 .ur-frozen { font-size:11px; padding:2px 6px; border-radius:8px; background:#fed7d7; color:#9b2c2c; }
+.ur-tier { font-size:11px; font-weight:700; padding:2px 7px; border-radius:8px; }
+.ur-tier.v1 { background:#e8f5e9; color:#2e7d32; }
+.ur-tier.v2 { background:#e3f2fd; color:#1565c0; }
+.ur-tier.v3 { background:#fff8e1; color:#b7791f; }
 .ur-stat-inline { font-size:11px; color:#aaa; }
 .ur-actions { display:flex; gap:5px; flex-shrink:0; }
 .btn-freeze { padding:5px 10px; background:#e53e3e; color:#fff; border:none; border-radius:7px; font-size:12px; cursor:pointer; }

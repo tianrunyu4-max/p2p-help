@@ -122,16 +122,29 @@ export async function handleAdmin(request, env, pathname) {
       exitedCountMap[r.referrer_id] = (exitedCountMap[r.referrer_id] || 0) + 1
     }
 
+    // 批量查每个用户最新已完成激活订单的档位（tier）
+    const { data: tierOrders } = await db.from('activation_orders')
+      .select('user_id, tier')
+      .in('user_id', userIds)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+    // 每个用户取最新的一条
+    const tierMap = {}
+    for (const o of tierOrders || []) {
+      if (!tierMap[o.user_id]) tierMap[o.user_id] = o.tier
+    }
+
     return ok(users.map(u => ({
-      id:           u.id,
-      user_no:      u.user_no,
-      referrer_no:  referrerMap[u.referrer_id] || null,
-      role:         u.role,
-      is_exited:    u.is_exited,
-      invite_used:  u.invite_used,
+      id:             u.id,
+      user_no:        u.user_no,
+      referrer_no:    referrerMap[u.referrer_id] || null,
+      role:           u.role,
+      is_exited:      u.is_exited,
+      invite_used:    u.invite_used,
       total_received: u.total_received,
-      is_frozen:    u.is_frozen,
-      exited_count: exitedCountMap[u.id] || 0,
+      is_frozen:      u.is_frozen,
+      exited_count:   exitedCountMap[u.id] || 0,
+      current_tier:   tierMap[u.id] || null,   // V1 / V2 / V3
     })))
   }
 
