@@ -7,11 +7,19 @@ import axios from 'axios'
 const router = useRouter()
 const store  = useUserStore()
 
+// ── 三档配置（前端展示用）────────────────────────────────────
+const TIERS = {
+  V1: { label: 'V1 入门', total: 30,  jianDian: 10, bangFu: 4,  pingJii: 6,  perLayer: 1,  color: '#48bb78', desc: '轻松入门，低门槛体验互助模式' },
+  V2: { label: 'V2 进阶', total: 90,  jianDian: 30, bangFu: 12, pingJii: 18, perLayer: 3,  color: '#4299e1', desc: '进阶参与，收益提升3倍' },
+  V3: { label: 'V3 旗舰', total: 260, jianDian: 80, bangFu: 30, pingJii: 60, perLayer: 10, color: '#f0a500', desc: '旗舰档位，最高收益回报' },
+}
+
 // ── 步骤 ──────────────────────────────────────────────────────
-// 1: 欢迎/说明  2: 填邀请码+安全问题  3: 等待激活订单  4: 支付清单
+// 1: 选档位  2: 填邀请码+安全问题  3: 等待激活订单  4: 支付清单
 const step      = ref(1)
 const loading   = ref(false)
 const error     = ref('')
+const selectedTier = ref('V3')  // 默认V3
 
 // Step 2
 const inviteCode    = ref('')
@@ -22,14 +30,19 @@ const showSecTip    = ref(false)
 const order = ref(null)
 
 onMounted(async () => {
-  // 已绑定推荐人 → 跳到激活步骤
   if (store.hasReferrer && !store.isActivated) {
     step.value = 3
     await loadOrder()
   } else if (store.isActivated) {
-    router.replace('/myshop')
+    // 已激活 → 直接进入订单查看（允许查看待付款订单）
+    step.value = 3
+    await loadOrder()
   }
 })
+
+function selectTier(t) {
+  selectedTier.value = t
+}
 
 async function submitParticipate() {
   if (!inviteCode.value.trim()) { error.value = '请输入邀请码'; return }
@@ -54,8 +67,7 @@ async function submitParticipate() {
 
 async function loadOrder() {
   try {
-    // 创建或获取激活订单
-    const res = await axios.post('/api/activate/create')
+    const res = await axios.post('/api/activate/create', { tier: selectedTier.value })
     order.value = res.data.data
     if (order.value) step.value = 4
   } catch (e) {
@@ -93,66 +105,43 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
       </div>
     </div>
 
-    <!-- ════════ Step 1: 欢迎说明 ════════ -->
+    <!-- ════════ Step 1: 选择档位 ════════ -->
     <div v-if="step === 1" class="step-wrap">
       <div class="hero-section">
         <div class="hero-icon">🏪</div>
-        <h1 class="hero-title">1+1 点对点互助</h1>
+        <h1 class="hero-title">选择参与档位</h1>
         <p class="hero-sub">自愿参与 · 直接打款 · 全程透明</p>
       </div>
 
-      <!-- 总金额展示 -->
-      <div class="amount-card">
-        <div class="amount-label">参与总金额</div>
-        <div class="amount-big">¥260</div>
-        <div class="amount-sub">全部点对点直接打款给真实用户</div>
-      </div>
-
-      <!-- 分配说明 -->
-      <div class="breakdown-card">
-        <div class="breakdown-title">💡 资金分配明细</div>
-        <div class="breakdown-item">
-          <div class="bi-left">
-            <span class="bi-icon">👑</span>
-            <div>
-              <div class="bi-name">见点奖</div>
-              <div class="bi-desc">给邀请你的老板</div>
-            </div>
+      <!-- 三档卡片 -->
+      <div class="tier-list">
+        <div
+          v-for="(cfg, key) in TIERS" :key="key"
+          class="tier-card"
+          :class="{ selected: selectedTier === key }"
+          :style="selectedTier === key ? { borderColor: cfg.color, boxShadow: `0 4px 16px ${cfg.color}40` } : {}"
+          @click="selectTier(key)"
+        >
+          <div class="tier-top">
+            <div class="tier-name" :style="{ color: cfg.color }">{{ cfg.label }}</div>
+            <div class="tier-price" :style="{ color: cfg.color }">¥{{ cfg.total }}</div>
           </div>
-          <div class="bi-amount">¥80</div>
-        </div>
-        <div class="breakdown-item">
-          <div class="bi-left">
-            <span class="bi-icon">🤝</span>
-            <div>
-              <div class="bi-name">帮扶奖</div>
-              <div class="bi-desc">给出局直推 / 生活补贴参与者</div>
-            </div>
+          <div class="tier-desc">{{ cfg.desc }}</div>
+          <div class="tier-breakdown">
+            <span>👑 见点 ¥{{ cfg.jianDian }}</span>
+            <span>🤝 帮扶 ¥{{ cfg.bangFu }}×2</span>
+            <span>📊 平级 每层+¥{{ cfg.perLayer }}</span>
           </div>
-          <div class="bi-amount">¥30 × 2</div>
-        </div>
-        <div class="breakdown-item">
-          <div class="bi-left">
-            <span class="bi-icon">📊</span>
-            <div>
-              <div class="bi-name">平级奖</div>
-              <div class="bi-desc">沿邀请链向上12层，每层10元</div>
-            </div>
-          </div>
-          <div class="bi-amount">¥120</div>
-        </div>
-        <div class="breakdown-total">
-          <span>合计</span>
-          <span class="total-num">¥260</span>
+          <div v-if="selectedTier === key" class="tier-check" :style="{ background: cfg.color }">✓ 已选</div>
         </div>
       </div>
 
-      <!-- 流程步骤 -->
+      <!-- 流程说明 -->
       <div class="flow-card">
         <div class="flow-title">📋 参与流程</div>
         <div class="flow-step" v-for="(s, i) in [
           { icon:'🔑', text:'填写邀请码 + 设置安全问题' },
-          { icon:'📋', text:'系统自动生成收款清单' },
+          { icon:'📋', text:'系统按档位生成收款清单' },
           { icon:'📱', text:'逐笔扫码打款' },
           { icon:'📷', text:'上传付款截图' },
           { icon:'✅', text:'对方确认 → 激活成功' },
@@ -165,7 +154,7 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
       </div>
 
       <button class="btn-next" @click="step = 2">
-        我已了解，立即参与 →
+        选择 {{ TIERS[selectedTier].label }}（¥{{ TIERS[selectedTier].total }}），下一步 →
       </button>
     </div>
 
@@ -347,6 +336,19 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
 .bi-amount { font-size:16px; font-weight:700; color:#f0a500; }
 .breakdown-total { display:flex; justify-content:space-between; padding-top:12px; font-size:15px; font-weight:700; }
 .total-num { color:#f0a500; font-size:20px; }
+
+/* ── 档位选择 ── */
+.tier-list { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
+.tier-card { background:#fff; border-radius:16px; padding:16px; border:2px solid #e0e0e0; cursor:pointer; transition:all .2s; position:relative; }
+.tier-card.selected { border-width:2px; }
+.tier-card:active { transform:scale(.98); }
+.tier-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+.tier-name { font-size:16px; font-weight:800; }
+.tier-price { font-size:24px; font-weight:800; }
+.tier-desc { font-size:12px; color:#888; margin-bottom:10px; }
+.tier-breakdown { display:flex; gap:10px; flex-wrap:wrap; }
+.tier-breakdown span { font-size:12px; color:#555; background:#f5f5f5; padding:3px 8px; border-radius:8px; }
+.tier-check { position:absolute; top:12px; right:12px; color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
 
 .flow-card { background:#fff; border-radius:16px; padding:16px; margin-bottom:20px; }
 .flow-title { font-size:14px; font-weight:700; margin-bottom:12px; }

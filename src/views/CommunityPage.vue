@@ -231,18 +231,10 @@ function closeImagePreview() { showImagePreview.value = false }
         </span>
       </div>
       <button
-        v-if="!store.isActivated"
         class="btn-participate"
         @click="router.push('/participate')"
       >
         🤝 自愿参与
-      </button>
-      <button
-        v-else
-        class="btn-activated"
-        @click="router.push('/myshop')"
-      >
-        👑 我的店铺
       </button>
     </div>
     <!-- 消息流 -->

@@ -1,10 +1,9 @@
 /**
- * activate.js — 激活匹配核心算法
+ * activate.js — 激活匹配核心算法（三档体系）
  *
- * 激活金 260元，全部 P2P 点对点，同时触发：
- *   见点    80   → 老板（永久）
- *   帮扶    30×2 → 老板的2个直推中已出局者；未出局→平级节点1代收
- *   平级    60×2 → 2个平级节点（节点收款后系统自动给链上各6人记+10余额）
+ * V1: 30元  = 见点10 + 帮扶4×2  + 平级6×2  (每层+1)
+ * V2: 90元  = 见点30 + 帮扶12×2 + 平级18×2 (每层+3)
+ * V3: 260元 = 见点80 + 帮扶30×2 + 平级60×2 (每层+10)
  *
  * 滑落+贡献逻辑：
  *   没有滑落 → contribution_slot='first'  → 第1个邀请贡献到原模型（invite_used=0触发）
@@ -15,10 +14,12 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const ACTIVATE_AMOUNT   = 260
-const JIAN_DIAN         = 80
-const BANG_FU           = 30
-const PINGJII_NODE_AMT  = 60   // 每个平级节点收60元
+// ── 三档配置 ──────────────────────────────────────────────────
+const TIERS = {
+  V1: { total: 30,  jianDian: 10, bangFu: 4,  pingJiiNode: 6,  perLayer: 1  },
+  V2: { total: 90,  jianDian: 30, bangFu: 12, pingJiiNode: 18, perLayer: 3  },
+  V3: { total: 260, jianDian: 80, bangFu: 30, pingJiiNode: 60, perLayer: 10 },
+}
 const REPURCHASE_LIMIT  = 900
 
 export async function handleActivate(request, env, pathname) {
@@ -32,7 +33,10 @@ export async function handleActivate(request, env, pathname) {
   if (me.is_frozen) return err('账户已被冻结')
 
   if (pathname === '/api/activate/create' && request.method === 'POST') {
-    return await createActivationOrder(db, me)
+    let tier = 'V3'
+    try { const body = await request.json(); tier = body.tier || 'V3' } catch {}
+    if (!TIERS[tier]) return err('无效档位，请选择 V1/V2/V3')
+    return await createActivationOrder(db, me, tier)
   }
 
   if (pathname === '/api/activate/order' && request.method === 'GET') {
@@ -43,7 +47,8 @@ export async function handleActivate(request, env, pathname) {
 }
 
 // ── 创建激活订单 ──────────────────────────────────────────────
-async function createActivationOrder(db, user) {
+async function createActivationOrder(db, user, tier = 'V3') {
+  const tierCfg = TIERS[tier]
   const isRepurchase = (user.total_received || 0) >= REPURCHASE_LIMIT
 
   if (user.is_active && !isRepurchase) {
@@ -61,13 +66,13 @@ async function createActivationOrder(db, user) {
   const referrer = await getUser(db, user.referrer_id)
   if (!referrer || !referrer.is_active) return err('推荐人尚未激活')
 
-  const tasks = await buildPaymentTasks(db, user.id, referrer)
+  const tasks = await buildPaymentTasks(db, user.id, referrer, tierCfg)
   if (!tasks.length) return err('无法匹配收款方，请联系客服')
 
   const { data: order, error: oe } = await db.from('activation_orders').insert({
     user_id: user.id, status: 'pending',
     total_tasks: tasks.length, confirmed_tasks: 0,
-    is_repurchase: isRepurchase,
+    is_repurchase: isRepurchase, tier,
   }).select().single()
   if (oe) return err('创建订单失败')
 
@@ -100,17 +105,17 @@ async function createActivationOrder(db, user) {
 }
 
 // ── 核心匹配算法 ──────────────────────────────────────────────
-async function buildPaymentTasks(db, newUserId, referrer) {
+async function buildPaymentTasks(db, newUserId, referrer, tierCfg = TIERS.V3) {
   const tasks = []
 
   // 1. 确定进入哪个店铺（含滑落+贡献逻辑）
   const { shopOwnerId } = await resolveShopWithContribution(db, newUserId, referrer)
   if (!shopOwnerId) return []
 
-  // 3. 见点 70 → 老板（同时触发）
+  // 3. 见点 → 老板（同时触发）
   tasks.push({
     receiver_id: shopOwnerId,
-    amount:      JIAN_DIAN,
+    amount:      tierCfg.jianDian,
     type:        'jian_dian',
     type_label:  '见点奖',
   })
@@ -131,32 +136,29 @@ async function buildPaymentTasks(db, newUserId, referrer) {
   for (let i = 0; i < 2; i++) {
     const push = (directPushes || [])[i]
     if (push && push.is_exited) {
-      // 直推已出局 → 帮扶30给该老板
       tasks.push({
         receiver_id: push.id,
-        amount:      BANG_FU,
+        amount:      tierCfg.bangFu,
         type:        'bang_fu',
         type_label:  `帮扶奖（直推${i+1}号老板）`,
       })
     } else {
-      // 直推未出局 → 匹配给生活补贴等待收款的静态玩家
       const subsidyPlayer = subsidyReceivers[subsidyIdx]
       if (subsidyPlayer) {
         tasks.push({
           receiver_id: subsidyPlayer.user_id,
-          amount:      BANG_FU,
+          amount:      tierCfg.bangFu,
           type:        'bang_fu_subsidy',
           type_label:  `帮扶→生活补贴玩家（直推${i+1}号未出局）`,
           subsidy_queue_id: subsidyPlayer.id,
         })
         subsidyIdx++
       } else {
-        // 无静态玩家等待 → 给平级节点1暂存
         const pingjiiNode1 = await getPingjiiNode(db, 1)
         if (pingjiiNode1) {
           tasks.push({
             receiver_id: pingjiiNode1.id,
-            amount:      BANG_FU,
+            amount:      tierCfg.bangFu,
             type:        'bang_fu_admin',
             type_label:  `帮扶预留（直推${i+1}号未出局，暂存节点）`,
           })
@@ -165,8 +167,8 @@ async function buildPaymentTasks(db, newUserId, referrer) {
     }
   }
 
-  // 5. 平级奖 60×2 → 打给2个平级节点（或提现队列用户）
-  const pingjiiTasks = await buildPingjiiTasks(db, newUserId, referrer.id)
+  // 5. 平级奖 → 打给2个平级节点（或提现队列用户）
+  const pingjiiTasks = await buildPingjiiTasks(db, newUserId, referrer.id, tierCfg.pingJiiNode)
   tasks.push(...pingjiiTasks)
 
   return tasks
@@ -242,33 +244,29 @@ function checkContribution(user) {
   return false
 }
 
-// ── 平级奖：2×60 → 打给平级节点（或提现队列用户）────────────
-async function buildPingjiiTasks(db, newUserId, referrerId) {
+// ── 平级奖 → 打给平级节点（或提现队列用户）──────────────────
+async function buildPingjiiTasks(db, newUserId, referrerId, nodeAmt = 60) {
   const tasks = []
   for (let nodeOrder = 1; nodeOrder <= 2; nodeOrder++) {
-    // 先查提现队列有没有等待的用户（P2P直接打给等待提现的人）
     const { data: waiting } = await db.from('pingjii_withdraw_queue')
       .select('id, user_id').eq('status', 'waiting')
       .order('created_at', { ascending: true }).limit(1).maybeSingle()
 
     if (waiting) {
-      // 直接打给等待提现的用户（真正P2P）
       tasks.push({
         receiver_id:  waiting.user_id,
-        amount:       PINGJII_NODE_AMT,
+        amount:       nodeAmt,
         type:         `ping_ji_node_${nodeOrder}`,
         type_label:   `平级奖（直达提现用户）`,
-        pq_id:        waiting.id,   // 记录提现队列ID
+        pq_id:        waiting.id,
       })
-      // 锁定该提现队列记录
       await db.from('pingjii_withdraw_queue').update({ status: 'matched' }).eq('id', waiting.id)
     } else {
-      // 没有等待提现的用户 → 打给平级节点
       const node = await getPingjiiNode(db, nodeOrder)
       if (node) {
         tasks.push({
           receiver_id: node.id,
-          amount:      PINGJII_NODE_AMT,
+          amount:      nodeAmt,
           type:        `ping_ji_node_${nodeOrder}`,
           type_label:  `平级奖节点${nodeOrder}`,
         })
@@ -288,14 +286,24 @@ async function getPingjiiNode(db, order) {
 
 // ── 确认平级节点收款后自动给链上用户记余额 ───────────────────
 // Bug3修复：直接跳过不属于本节点的层，从startLayer开始遍历
-export async function creditPingjiiChain(db, payerId, nodeOrder) {
+// perLayer 可由调用方传入；若不传则从支付任务反推（nodeAmt/6）
+export async function creditPingjiiChain(db, payerId, nodeOrder, perLayer = null) {
   const user = await getUser(db, payerId)
   if (!user?.referrer_id) return
 
-  const skipLayers = (nodeOrder - 1) * 6  // 节点1跳0层，节点2跳6层
-  const creditLayers = 6                   // 每个节点负责6层
+  // 未传 perLayer → 查最近一笔该类型任务，取 amount/6
+  if (perLayer === null) {
+    const { data: pt } = await db.from('payment_tasks')
+      .select('amount')
+      .eq('payer_id', payerId)
+      .eq('type', `ping_ji_node_${nodeOrder}`)
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    perLayer = pt ? Math.round(pt.amount / 6) : 10
+  }
 
-  // 先跳过前面不属于本节点的层
+  const skipLayers  = (nodeOrder - 1) * 6
+  const creditLayers = 6
   let currentId = user.referrer_id
   const visited = new Set()
 
@@ -307,13 +315,12 @@ export async function creditPingjiiChain(db, payerId, nodeOrder) {
     currentId = u.referrer_id
   }
 
-  // 再给本节点负责的6层记余额
   for (let i = 0; i < creditLayers && currentId; i++) {
     if (visited.has(currentId)) break
     visited.add(currentId)
     const u = await getUser(db, currentId)
     if (!u) break
-    const newBal = parseFloat(u.pingjii_balance || 0) + 10
+    const newBal = parseFloat(u.pingjii_balance || 0) + perLayer
     await db.from('users').update({ pingjii_balance: newBal }).eq('id', u.id)
     currentId = u.referrer_id
   }
