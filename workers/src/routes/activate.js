@@ -20,7 +20,13 @@ const TIERS = {
   V2: { total: 90,  jianDian: 30, bangFu: 12, pingJiiNode: 18, perLayer: 3  },
   V3: { total: 260, jianDian: 80, bangFu: 30, pingJiiNode: 60, perLayer: 10 },
 }
-const REPURCHASE_LIMIT  = 900
+
+// ── 复投规则：收满阈值后必须复投指定档位才能解锁 ──────────────
+const REINVEST_RULES = {
+  V1: { threshold: 200,  requiredTier: 'V2' },
+  V2: { threshold: 500,  requiredTier: 'V3' },
+  V3: { threshold: 1000, requiredTier: 'V3' },
+}
 
 export async function handleActivate(request, env, pathname) {
   if (!pathname.startsWith('/api/activate') && !pathname.startsWith('/api/repurchase')) return null
@@ -43,23 +49,68 @@ export async function handleActivate(request, env, pathname) {
     return await getActiveOrder(db, me.id)
   }
 
+  // GET /api/activate/reinvest-status — 当前复投状态
+  if (pathname === '/api/activate/reinvest-status' && request.method === 'GET') {
+    const status = await getReinvestStatus(db, me)
+    return ok(status)
+  }
+
   return null
+}
+
+// ── 查用户当前档位（最近一笔完成的激活订单）────────────────────
+async function getUserCurrentTier(db, userId) {
+  const { data } = await db.from('activation_orders')
+    .select('tier')
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(1).maybeSingle()
+  return data?.tier || null
+}
+
+// ── 复投状态 ──────────────────────────────────────────────────
+async function getReinvestStatus(db, user) {
+  if (!user.is_active) return { currentTier: null, locked: false }
+  const currentTier = await getUserCurrentTier(db, user.id)
+  if (!currentTier) return { currentTier: null, locked: false }
+  const rule = REINVEST_RULES[currentTier]
+  if (!rule) return { currentTier, locked: false }
+  const totalReceived = parseFloat(user.total_received || 0)
+  const locked = totalReceived >= rule.threshold
+  return {
+    currentTier,
+    locked,
+    threshold:    rule.threshold,
+    requiredTier: rule.requiredTier,
+    requiredTotal: TIERS[rule.requiredTier].total,
+    totalReceived,
+  }
 }
 
 // ── 创建激活订单 ──────────────────────────────────────────────
 async function createActivationOrder(db, user, tier = 'V3') {
   const tierCfg = TIERS[tier]
-  const isRepurchase = (user.total_received || 0) >= REPURCHASE_LIMIT
 
-  if (user.is_active && !isRepurchase) {
-    const { data: existing } = await db.from('activation_orders')
-      .select('*, payment_tasks(*)')
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1).maybeSingle()
-    if (existing) return ok(formatOrder(existing))
-    return err('已激活，无需重复激活')
+  if (user.is_active) {
+    const reinvest = await getReinvestStatus(db, user)
+    if (reinvest.locked) {
+      // 已锁定：只允许用指定档位复投
+      if (tier !== reinvest.requiredTier) {
+        return err(`收款已达 ¥${reinvest.threshold}，须复投${reinvest.requiredTier}（¥${reinvest.requiredTotal}）才能解锁账号`)
+      }
+      // 档位正确 → 允许创建复投订单，继续往下走
+    } else {
+      // 未达锁定阈值 → 返回已有待付款订单或提示已激活
+      const { data: existing } = await db.from('activation_orders')
+        .select('*, payment_tasks(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1).maybeSingle()
+      if (existing) return ok(formatOrder(existing))
+      return err('已激活，无需重复激活')
+    }
   }
 
   if (!user.referrer_id) return err('未绑定推荐人，无法激活')
@@ -72,7 +123,7 @@ async function createActivationOrder(db, user, tier = 'V3') {
   const { data: order, error: oe } = await db.from('activation_orders').insert({
     user_id: user.id, status: 'pending',
     total_tasks: tasks.length, confirmed_tasks: 0,
-    is_repurchase: isRepurchase, tier,
+    is_repurchase: user.is_active, tier,
   }).select().single()
   if (oe) return err('创建订单失败')
 

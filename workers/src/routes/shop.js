@@ -2,7 +2,11 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const REPURCHASE_LIMIT = 900
+const REINVEST_RULES = {
+  V1: { threshold: 200,  requiredTier: 'V2', requiredTotal: 90  },
+  V2: { threshold: 500,  requiredTier: 'V3', requiredTotal: 260 },
+  V3: { threshold: 1000, requiredTier: 'V3', requiredTotal: 260 },
+}
 
 export async function handleShop(request, env, pathname) {
   if (!pathname.startsWith('/api/shop') && !pathname.startsWith('/api/qr')) return null
@@ -78,7 +82,25 @@ export async function handleShop(request, env, pathname) {
       .order('confirmed_at', { ascending: false })
       .limit(20)
 
-    const repurchaseNeed = me.is_active && totalReceived >= REPURCHASE_LIMIT
+    // 复投状态（根据当前档位动态计算锁定阈值）
+    let currentTier = null
+    let reinvestLocked = false
+    let reinvestThreshold = null
+    let reinvestRequiredTier = null
+    let reinvestRequiredTotal = null
+    if (me.is_active) {
+      const { data: latestOrder } = await db.from('activation_orders')
+        .select('tier').eq('user_id', payload.userId).eq('status', 'completed')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      currentTier = latestOrder?.tier || null
+      const rule = currentTier ? REINVEST_RULES[currentTier] : null
+      if (rule) {
+        reinvestThreshold    = rule.threshold
+        reinvestRequiredTier = rule.requiredTier
+        reinvestRequiredTotal = rule.requiredTotal
+        reinvestLocked       = totalReceived >= rule.threshold
+      }
+    }
 
     return ok({
       directCount:   directCount || 0,
@@ -87,8 +109,15 @@ export async function handleShop(request, env, pathname) {
       agentsJoined,
       bossesExited,
       recentTasks:   recentTasks || [],
-      repurchaseNeed,
-      repurchaseLimit: REPURCHASE_LIMIT,
+      // 新：复投状态
+      currentTier,
+      reinvestLocked,
+      reinvestThreshold,
+      reinvestRequiredTier,
+      reinvestRequiredTotal,
+      // 兼容旧字段
+      repurchaseNeed:  reinvestLocked,
+      repurchaseLimit: reinvestThreshold || 900,
     })
   }
 

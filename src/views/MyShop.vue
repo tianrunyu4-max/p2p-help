@@ -26,7 +26,12 @@ const navItems = [
 const shop = ref(null)
 const teamStats = ref({
   directCount: 0, totalCount: 0,
-  totalReceived: 0, recentTasks: [], repurchaseNeed: false, agentsJoined: 0, bossesExited: 0, repurchaseLimit: 900
+  totalReceived: 0, recentTasks: [], agentsJoined: 0, bossesExited: 0,
+  currentTier: null,
+  reinvestLocked: false, reinvestThreshold: null,
+  reinvestRequiredTier: null, reinvestRequiredTotal: null,
+  // 兼容旧字段
+  repurchaseNeed: false, repurchaseLimit: 900,
 })
 
 // 平级余额
@@ -145,36 +150,71 @@ function fmtTime(ts) {
       <div class="balance-card" v-if="activeNav === 'income'">
         <div class="balance-header">
           <span class="balance-title">💵 我的收款</span>
+          <!-- 当前档位徽章 -->
+          <span v-if="teamStats.currentTier" class="tier-badge"
+            :class="teamStats.currentTier?.toLowerCase()">
+            {{ teamStats.currentTier }}
+          </span>
         </div>
         <div class="balance-main">
           <span class="balance-amount-large">{{ fmt(teamStats.totalReceived) }}</span>
           <span class="balance-unit">元</span>
         </div>
 
-        <!-- 收款进度（900复投） -->
-        <div class="today-earnings-banner">
-          <span class="earnings-icon">📈</span>
-          <span class="earnings-label">累计进度</span>
-          <span class="earnings-amount gold">{{ fmt(teamStats.totalReceived) }} / 900</span>
+        <!-- 复投进度条 -->
+        <div class="today-earnings-banner" :class="{ locked: teamStats.reinvestLocked }">
+          <span class="earnings-icon">{{ teamStats.reinvestLocked ? '🔒' : '📈' }}</span>
+          <span class="earnings-label">{{ teamStats.reinvestLocked ? '已锁定' : '收款进度' }}</span>
+          <span class="earnings-amount gold">
+            {{ fmt(teamStats.totalReceived) }} / {{ teamStats.reinvestThreshold || '—' }}
+          </span>
         </div>
 
-        <div class="activate-guide-tip" v-if="teamStats.repurchaseNeed" style="background:#fff5f5;border-color:#fed7d7;color:#c53030">
-          🔄 累计收款已达 900 元，请重新激活参与新一轮互助！
+        <!-- 进度条 -->
+        <div v-if="teamStats.reinvestThreshold" class="reinvest-progress-wrap">
+          <div class="reinvest-progress-bar">
+            <div class="reinvest-progress-fill"
+              :class="{ locked: teamStats.reinvestLocked }"
+              :style="{ width: Math.min((teamStats.totalReceived / teamStats.reinvestThreshold) * 100, 100) + '%' }">
+            </div>
+          </div>
+          <div class="reinvest-progress-tip">
+            <span v-if="teamStats.reinvestLocked" class="tip-warn">
+              ⚠️ 已收满 ¥{{ teamStats.reinvestThreshold }}，账号已锁定
+            </span>
+            <span v-else class="tip-normal">
+              还差 ¥{{ Math.max(0, teamStats.reinvestThreshold - teamStats.totalReceived).toFixed(0) }} 达到复投线
+            </span>
+          </div>
         </div>
-        <div class="activate-guide-tip" v-else>
-          💡 累计收款满 900 元后需重新激活，继续参与互助循环
+
+        <!-- 锁定提示 + 复投按钮 -->
+        <div v-if="teamStats.reinvestLocked" class="reinvest-alert">
+          <div class="ra-lock-icon">🔒</div>
+          <div class="ra-lock-info">
+            <div class="ra-lock-title">账号已锁定，需要复投解锁</div>
+            <div class="ra-lock-sub">
+              复投 {{ teamStats.reinvestRequiredTier }}（¥{{ teamStats.reinvestRequiredTotal }}）解锁，继续参与互助
+            </div>
+          </div>
+        </div>
+        <div v-else-if="teamStats.reinvestThreshold" class="activate-guide-tip">
+          💡 累计收款满 ¥{{ teamStats.reinvestThreshold }} 后需复投{{ teamStats.reinvestRequiredTier }}（¥{{ teamStats.reinvestRequiredTotal }}）继续
+        </div>
+        <div v-else class="activate-guide-tip">
+          💡 激活后查看收款进度
         </div>
 
         <!-- 收款类型汇总 -->
         <div class="income-breakdown">
           <div class="breakdown-item">
             <div class="bk-icon" style="background:#fffbea">👑</div>
-            <div class="bk-info"><div class="bk-name">见点奖</div><div class="bk-hint">70元/次</div></div>
+            <div class="bk-info"><div class="bk-name">见点奖</div><div class="bk-hint">按档位</div></div>
             <div class="bk-amount">+{{ fmt(totalJianDian) }}元</div>
           </div>
           <div class="breakdown-item">
             <div class="bk-icon" style="background:#f0fff4">🫱</div>
-            <div class="bk-info"><div class="bk-name">帮扶奖</div><div class="bk-hint">50元/次</div></div>
+            <div class="bk-info"><div class="bk-name">帮扶奖</div><div class="bk-hint">按档位</div></div>
             <div class="bk-amount">+{{ fmt(totalBangFu) }}元</div>
           </div>
           <div class="breakdown-item">
@@ -185,9 +225,15 @@ function fmtTime(ts) {
         </div>
 
         <div class="action-buttons">
-          <button class="action-btn activate full-width" @click="router.push('/activate')">
+          <button v-if="teamStats.reinvestLocked"
+            class="action-btn reinvest full-width"
+            @click="router.push('/participate')">
+            <span class="btn-icon">🔓</span>
+            立即复投 {{ teamStats.reinvestRequiredTier }}（¥{{ teamStats.reinvestRequiredTotal }}）解锁账号
+          </button>
+          <button v-else class="action-btn activate full-width" @click="router.push('/activate')">
             <span class="btn-icon">⚡</span>
-            {{ teamStats.repurchaseNeed ? '重新激活（复投）' : '去激活' }}
+            去激活
           </button>
         </div>
       </div>
@@ -297,11 +343,11 @@ function fmtTime(ts) {
       <div class="team-card" v-if="activeNav === 'team'">
         <div class="card-title">📊 团队数据</div>
         <!-- 复投提示 -->
-        <div v-if="teamStats.repurchaseNeed" class="repurchase-alert">
-          <div class="ra-icon">🔄</div>
+        <div v-if="teamStats.reinvestLocked" class="repurchase-alert">
+          <div class="ra-icon">🔒</div>
           <div>
-            <div class="ra-title">收款已满900元，请复投！</div>
-            <div class="ra-sub">复投后继续参与互助，获得新一轮收款资格</div>
+            <div class="ra-title">收款已达 ¥{{ teamStats.reinvestThreshold }}，账号已锁定！</div>
+            <div class="ra-sub">需复投 {{ teamStats.reinvestRequiredTier }}（¥{{ teamStats.reinvestRequiredTotal }}）才能继续参与互助</div>
           </div>
         </div>
 
@@ -320,11 +366,15 @@ function fmtTime(ts) {
             <span class="stat-value">{{ fmt(teamStats.totalReceived) }}</span>
             <span class="stat-label">累计收款</span>
           </div>
-          <div class="stat-item">
-            <span class="stat-value" :class="{ 'stat-done': teamStats.totalReceived >= 900 }">
-              {{ teamStats.totalReceived >= 900 ? '✓' : fmt(900 - teamStats.totalReceived) }}
+          <div class="stat-item" v-if="teamStats.reinvestThreshold">
+            <span class="stat-value" :class="{ 'stat-done': teamStats.reinvestLocked }">
+              {{ teamStats.reinvestLocked ? '🔒' : fmt(teamStats.reinvestThreshold - teamStats.totalReceived) }}
             </span>
-            <span class="stat-label">距复投还差</span>
+            <span class="stat-label">距{{ teamStats.reinvestRequiredTier }}复投</span>
+          </div>
+          <div class="stat-item" v-else>
+            <span class="stat-value">—</span>
+            <span class="stat-label">复投进度</span>
           </div>
         </div>
 
@@ -629,6 +679,40 @@ function fmtTime(ts) {
   margin-bottom:12px; font-size:13px; color:#7a5500;
   font-weight:500; text-align:center;
 }
+
+/* 档位徽章 */
+.tier-badge { padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
+.tier-badge.v1 { background:#e8f5e9; color:#2e7d32; }
+.tier-badge.v2 { background:#e3f2fd; color:#1565c0; }
+.tier-badge.v3 { background:#fff8e1; color:#b7791f; }
+
+/* 复投进度条 */
+.reinvest-progress-wrap { margin:8px 0 12px; }
+.reinvest-progress-bar { height:8px; background:#eee; border-radius:4px; overflow:hidden; }
+.reinvest-progress-fill { height:100%; background:#48bb78; border-radius:4px; transition:width .4s; }
+.reinvest-progress-fill.locked { background:#e53e3e; }
+.reinvest-progress-tip { display:flex; justify-content:flex-end; font-size:12px; margin-top:4px; }
+.tip-warn { color:#c53030; font-weight:600; }
+.tip-normal { color:#888; }
+
+/* 锁定告警 */
+.reinvest-alert {
+  display:flex; align-items:center; gap:12px;
+  background:#fff5f5; border:2px solid #e53e3e;
+  border-radius:14px; padding:14px; margin-bottom:12px;
+}
+.ra-lock-icon { font-size:28px; flex-shrink:0; }
+.ra-lock-title { font-size:14px; font-weight:900; color:#c53030; }
+.ra-lock-sub { font-size:12px; color:#e53e3e; margin-top:2px; }
+
+/* 进度条 locked 状态 */
+.today-earnings-banner.locked {
+  background:linear-gradient(135deg,#FC8181,#E53E3E) !important;
+}
+
+/* 复投按钮 */
+.action-btn.reinvest { background:linear-gradient(135deg,#E53E3E,#C53030); color:#fff; }
+.action-btn.reinvest:hover { opacity:.9; }
 .income-breakdown { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
 .breakdown-item { display:flex; align-items:center; gap:10px; padding:10px; background:#f9f9f9; border-radius:10px; }
 .bk-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:18px; }

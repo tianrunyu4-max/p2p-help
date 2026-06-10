@@ -21,6 +21,12 @@ const loading   = ref(false)
 const error     = ref('')
 const selectedTier = ref('V3')  // 默认V3
 
+// 复投锁定状态
+const reinvestLocked       = ref(false)
+const reinvestRequiredTier = ref(null)
+const reinvestThreshold    = ref(null)
+const reinvestRequiredTotal = ref(null)
+
 // Step 2
 const inviteCode    = ref('')
 const securityAnswer = ref('')
@@ -30,17 +36,37 @@ const showSecTip    = ref(false)
 const order = ref(null)
 
 onMounted(async () => {
-  if (store.hasReferrer && !store.isActivated) {
-    step.value = 3
-    await loadOrder()
-  } else if (store.isActivated) {
-    // 已激活 → 直接进入订单查看（允许查看待付款订单）
+  if (store.isActivated) {
+    // 已激活：先查复投状态，再决定是否跳过选档步骤
+    try {
+      const res = await axios.get('/api/activate/reinvest-status')
+      const s = res.data.data
+      if (s?.locked) {
+        // 账号已锁定，预选并锁定必须的复投档位
+        reinvestLocked.value       = true
+        reinvestRequiredTier.value = s.requiredTier
+        reinvestThreshold.value    = s.threshold
+        reinvestRequiredTotal.value = s.requiredTotal
+        selectedTier.value         = s.requiredTier
+        // 停在 Step 1 让用户确认，但档位已预选
+      } else {
+        // 未锁定 → 查已有待付款订单
+        step.value = 3
+        await loadOrder()
+      }
+    } catch {
+      step.value = 3
+      await loadOrder()
+    }
+  } else if (store.hasReferrer) {
     step.value = 3
     await loadOrder()
   }
 })
 
 function selectTier(t) {
+  // 如果账号已锁定，不允许切换到其他档位
+  if (reinvestLocked.value) return
   selectedTier.value = t
 }
 
@@ -108,9 +134,21 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
     <!-- ════════ Step 1: 选择档位 ════════ -->
     <div v-if="step === 1" class="step-wrap">
       <div class="hero-section">
-        <div class="hero-icon">🏪</div>
-        <h1 class="hero-title">选择参与档位</h1>
-        <p class="hero-sub">自愿参与 · 直接打款 · 全程透明</p>
+        <div class="hero-icon">{{ reinvestLocked ? '🔓' : '🏪' }}</div>
+        <h1 class="hero-title">{{ reinvestLocked ? '复投解锁账号' : '选择参与档位' }}</h1>
+        <p class="hero-sub">{{ reinvestLocked ? '自愿参与 · 解锁后继续收款' : '自愿参与 · 直接打款 · 全程透明' }}</p>
+      </div>
+
+      <!-- 复投锁定提示 -->
+      <div v-if="reinvestLocked" class="reinvest-locked-banner">
+        <div class="rlb-icon">🔒</div>
+        <div class="rlb-body">
+          <div class="rlb-title">账号已锁定</div>
+          <div class="rlb-desc">
+            你的累计收款已达 ¥{{ reinvestThreshold }}，须复投
+            <strong>{{ reinvestRequiredTier }}（¥{{ reinvestRequiredTotal }}）</strong>才能解锁，继续参与互助
+          </div>
+        </div>
       </div>
 
       <!-- 三档卡片 -->
@@ -118,7 +156,11 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
         <div
           v-for="(cfg, key) in TIERS" :key="key"
           class="tier-card"
-          :class="{ selected: selectedTier === key }"
+          :class="{
+            selected: selectedTier === key,
+            locked: reinvestLocked && key !== reinvestRequiredTier,
+            'reinvest-required': reinvestLocked && key === reinvestRequiredTier
+          }"
           :style="selectedTier === key ? { borderColor: cfg.color, boxShadow: `0 4px 16px ${cfg.color}40` } : {}"
           @click="selectTier(key)"
         >
@@ -132,7 +174,9 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
             <span>🤝 帮扶 ¥{{ cfg.bangFu }}×2</span>
             <span>📊 平级 每层+¥{{ cfg.perLayer }}</span>
           </div>
-          <div v-if="selectedTier === key" class="tier-check" :style="{ background: cfg.color }">✓ 已选</div>
+          <div v-if="reinvestLocked && key === reinvestRequiredTier" class="tier-reinvest-tag">🔓 解锁所需档位</div>
+          <div v-else-if="selectedTier === key" class="tier-check" :style="{ background: cfg.color }">✓ 已选</div>
+          <div v-else-if="reinvestLocked" class="tier-lock-tag">🔒 不可用</div>
         </div>
       </div>
 
@@ -153,8 +197,10 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
         </div>
       </div>
 
-      <button class="btn-next" @click="step = 2">
-        选择 {{ TIERS[selectedTier].label }}（¥{{ TIERS[selectedTier].total }}），下一步 →
+      <button class="btn-next" @click="reinvestLocked ? (step = 3, loadOrder()) : (step = 2)"
+        :style="reinvestLocked ? { background: '#E53E3E' } : {}">
+        <span v-if="reinvestLocked">🔓 复投 {{ reinvestRequiredTier }}（¥{{ reinvestRequiredTotal }}），解锁账号 →</span>
+        <span v-else>选择 {{ TIERS[selectedTier].label }}（¥{{ TIERS[selectedTier].total }}），下一步 →</span>
       </button>
     </div>
 
@@ -337,11 +383,23 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
 .breakdown-total { display:flex; justify-content:space-between; padding-top:12px; font-size:15px; font-weight:700; }
 .total-num { color:#f0a500; font-size:20px; }
 
+/* ── 复投锁定提示横幅 ── */
+.reinvest-locked-banner {
+  display:flex; align-items:flex-start; gap:12px;
+  background:#fff5f5; border:2px solid #e53e3e;
+  border-radius:16px; padding:16px; margin-bottom:16px;
+}
+.rlb-icon { font-size:28px; flex-shrink:0; }
+.rlb-title { font-size:15px; font-weight:800; color:#c53030; margin-bottom:4px; }
+.rlb-desc { font-size:13px; color:#e53e3e; line-height:1.5; }
+
 /* ── 档位选择 ── */
 .tier-list { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
 .tier-card { background:#fff; border-radius:16px; padding:16px; border:2px solid #e0e0e0; cursor:pointer; transition:all .2s; position:relative; }
 .tier-card.selected { border-width:2px; }
-.tier-card:active { transform:scale(.98); }
+.tier-card.locked { opacity:.4; cursor:not-allowed; }
+.tier-card.reinvest-required { border-color:#e53e3e !important; box-shadow:0 4px 16px rgba(229,62,62,.3) !important; }
+.tier-card:not(.locked):active { transform:scale(.98); }
 .tier-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
 .tier-name { font-size:16px; font-weight:800; }
 .tier-price { font-size:24px; font-weight:800; }
@@ -349,6 +407,8 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
 .tier-breakdown { display:flex; gap:10px; flex-wrap:wrap; }
 .tier-breakdown span { font-size:12px; color:#555; background:#f5f5f5; padding:3px 8px; border-radius:8px; }
 .tier-check { position:absolute; top:12px; right:12px; color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
+.tier-reinvest-tag { position:absolute; top:12px; right:12px; background:#e53e3e; color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
+.tier-lock-tag { position:absolute; top:12px; right:12px; background:#999; color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
 
 .flow-card { background:#fff; border-radius:16px; padding:16px; margin-bottom:20px; }
 .flow-title { font-size:14px; font-weight:700; margin-bottom:12px; }
