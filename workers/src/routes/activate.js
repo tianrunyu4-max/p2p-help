@@ -1,8 +1,8 @@
 /**
  * activate.js — 激活匹配核心算法
  *
- * 激活金 230元，全部 P2P 点对点，同时触发：
- *   见点    50   → 老板（永久）
+ * 激活金 260元，全部 P2P 点对点，同时触发：
+ *   见点    80   → 老板（永久）
  *   帮扶    30×2 → 老板的2个直推中已出局者；未出局→平级节点1代收
  *   平级    60×2 → 2个平级节点（节点收款后系统自动给链上各6人记+10余额）
  *
@@ -15,8 +15,8 @@ import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
 import { ok, err } from '../utils/response.js'
 
-const ACTIVATE_AMOUNT   = 230
-const JIAN_DIAN         = 50
+const ACTIVATE_AMOUNT   = 260
+const JIAN_DIAN         = 80
 const BANG_FU           = 30
 const PINGJII_NODE_AMT  = 60   // 每个平级节点收60元
 const REPURCHASE_LIMIT  = 900
