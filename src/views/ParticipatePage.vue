@@ -36,38 +36,65 @@ const showSecTip    = ref(false)
 const order = ref(null)
 
 onMounted(async () => {
+  // 已激活：查复投锁定状态（决定档位预选）
   if (store.isActivated) {
-    // 已激活：先查复投状态，再决定是否跳过选档步骤
     try {
       const res = await axios.get('/api/activate/reinvest-status')
       const s = res.data.data
       if (s?.locked) {
-        // 账号已锁定，预选并锁定必须的复投档位
         reinvestLocked.value       = true
         reinvestRequiredTier.value = s.requiredTier
         reinvestThreshold.value    = s.threshold
         reinvestRequiredTotal.value = s.requiredTotal
         selectedTier.value         = s.requiredTier
-        // 停在 Step 1 让用户确认，但档位已预选
-      } else {
-        // 未锁定 → 查已有待付款订单
-        step.value = 3
-        await loadOrder()
+        // 停在 Step 1（带锁定横幅），等用户确认后才继续
+        return
       }
-    } catch {
-      step.value = 3
-      await loadOrder()
-    }
-  } else if (store.hasReferrer) {
-    step.value = 3
-    await loadOrder()
+    } catch {}
+
+    // 未锁定：检查是否有"进行中"的订单（直接跳到支付列表）
+    try {
+      const res = await axios.get('/api/activate/order')
+      if (res.data?.data) {
+        order.value = res.data.data
+        step.value  = 4
+        return
+      }
+    } catch {}
+    // 无进行中订单 → 停在 Step 1，让用户选档位后重新发起
+    return
   }
+
+  // 未激活但已绑定推荐人：检查是否有进行中的订单
+  if (store.hasReferrer) {
+    try {
+      const res = await axios.get('/api/activate/order')
+      if (res.data?.data) {
+        order.value = res.data.data
+        step.value  = 4
+        return
+      }
+    } catch {}
+    // 无进行中订单 → 停在 Step 1 选档位
+  }
+  // 全新用户：停在 Step 1
 })
 
 function selectTier(t) {
-  // 如果账号已锁定，不允许切换到其他档位
-  if (reinvestLocked.value) return
+  if (reinvestLocked.value) return  // 锁定时不允许切换档位
   selectedTier.value = t
+}
+
+// Step 1 下一步：根据用户状态决定走哪条路
+async function handleStep1Next() {
+  if (reinvestLocked.value || store.hasReferrer || store.isActivated) {
+    // 复投 / 已绑定推荐人 / 已激活重新发起 → 直接创建订单
+    step.value = 3
+    await loadOrder()
+  } else {
+    // 全新用户：去填邀请码
+    step.value = 2
+  }
 }
 
 async function submitParticipate() {
@@ -197,7 +224,7 @@ const allDone        = () => totalCount() > 0 && confirmedCount() === totalCount
         </div>
       </div>
 
-      <button class="btn-next" @click="reinvestLocked ? (step = 3, loadOrder()) : (step = 2)"
+      <button class="btn-next" @click="handleStep1Next"
         :style="reinvestLocked ? { background: '#E53E3E' } : {}">
         <span v-if="reinvestLocked">🔓 复投 {{ reinvestRequiredTier }}（¥{{ reinvestRequiredTotal }}），解锁账号 →</span>
         <span v-else>选择 {{ TIERS[selectedTier].label }}（¥{{ TIERS[selectedTier].total }}），下一步 →</span>
