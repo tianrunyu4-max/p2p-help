@@ -82,6 +82,23 @@ export async function handleShop(request, env, pathname) {
       .order('confirmed_at', { ascending: false })
       .limit(20)
 
+    // 平级收益记录（链上每层奖励，记在 pingjii_records 表）
+    const { data: pingjiiRecords } = await db.from('pingjii_records')
+      .select('amount, layer, from_user_no, created_at')
+      .eq('user_id', payload.userId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    // 合并为统一明细：平级记录转成与 payment_tasks 相同的展示格式
+    const pingjiiAsTasks = (pingjiiRecords || []).map(r => ({
+      amount:       r.amount,
+      type_label:   `平级奖（第${r.layer}层 · 来自${r.from_user_no}）`,
+      confirmed_at: r.created_at,
+    }))
+    const mergedTasks = [...(recentTasks || []), ...pingjiiAsTasks]
+      .sort((a, b) => new Date(b.confirmed_at) - new Date(a.confirmed_at))
+      .slice(0, 30)
+
     // 复投状态（根据当前档位动态计算锁定阈值）
     let currentTier = null
     let reinvestLocked = false
@@ -108,7 +125,8 @@ export async function handleShop(request, env, pathname) {
       totalReceived,
       agentsJoined,
       bossesExited,
-      recentTasks:   recentTasks || [],
+      recentTasks:   mergedTasks,
+      pingjiiBalance: parseFloat(me.pingjii_balance || 0),
       // 新：复投状态
       currentTier,
       reinvestLocked,

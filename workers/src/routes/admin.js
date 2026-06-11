@@ -54,11 +54,15 @@ export async function handleAdmin(request, env, pathname) {
     const taskId = forceMatch[1]
     const { data: task } = await db.from('payment_tasks').select('*').eq('id', taskId).single()
     if (!task) return err('任务不存在')
+    if (task.status === 'confirmed') return err('该任务已完成，请勿重复操作')
+    if (task.status === 'cancelled') return err('该任务已作废')
 
-    await db.from('payment_tasks').update({
+    // CAS 原子更新：状态未变才成功，防止并发重复确认重复加钱
+    const { data: casUpd } = await db.from('payment_tasks').update({
       status:       'confirmed',
       confirmed_at: new Date().toISOString(),
-    }).eq('id', taskId)
+    }).eq('id', taskId).eq('status', task.status).select('id')
+    if (!casUpd?.length) return err('操作冲突，请刷新后重试')
 
     // 更新收款方累计收款
     const receiver = await getUser(db, task.receiver_id)

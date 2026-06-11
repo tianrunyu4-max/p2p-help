@@ -113,6 +113,26 @@ async function createActivationOrder(db, user, tier = 'V3') {
     }
   }
 
+  // ── 防重复订单：已有进行中订单就返回它，不再新建 ──────────
+  const { data: existingOrder } = await db.from('activation_orders')
+    .select('*, payment_tasks(*)')
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'partial'])
+    .order('created_at', { ascending: false })
+    .limit(1).maybeSingle()
+  if (existingOrder) {
+    const hasPaid = (existingOrder.payment_tasks || []).some(t => t.status !== 'pending')
+    if (existingOrder.tier === tier || hasPaid) {
+      // 同档位 / 已有付款进度 → 直接返回旧订单
+      const full = await enrichTasks(db, existingOrder.payment_tasks)
+      return ok(formatOrder({ ...existingOrder, payment_tasks: full }))
+    }
+    // 换档位且一笔未付 → 作废旧订单，重新生成
+    await db.from('activation_orders').update({ status: 'cancelled' }).eq('id', existingOrder.id)
+    await db.from('payment_tasks').update({ status: 'cancelled' })
+      .eq('order_id', existingOrder.id).eq('status', 'pending')
+  }
+
   if (!user.referrer_id) return err('未绑定推荐人，无法激活')
   const referrer = await getUser(db, user.referrer_id)
   if (!referrer || !referrer.is_active) return err('推荐人尚未激活')
@@ -366,6 +386,7 @@ export async function creditPingjiiChain(db, payerId, nodeOrder, perLayer = null
     currentId = u.referrer_id
   }
 
+  const records = []
   for (let i = 0; i < creditLayers && currentId; i++) {
     if (visited.has(currentId)) break
     visited.add(currentId)
@@ -373,7 +394,18 @@ export async function creditPingjiiChain(db, payerId, nodeOrder, perLayer = null
     if (!u) break
     const newBal = parseFloat(u.pingjii_balance || 0) + perLayer
     await db.from('users').update({ pingjii_balance: newBal }).eq('id', u.id)
+    records.push({
+      user_id:      u.id,
+      amount:       perLayer,
+      layer:        skipLayers + i + 1,
+      from_user_no: user.user_no || '?',
+    })
     currentId = u.referrer_id
+  }
+
+  // 写平级收益记录（结算明细展示用）；表不存在时 supabase 返回 error 不抛异常，安全
+  if (records.length) {
+    await db.from('pingjii_records').insert(records)
   }
 }
 
