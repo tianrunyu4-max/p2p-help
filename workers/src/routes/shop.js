@@ -3,8 +3,10 @@ import { authMiddleware } from './auth.js'
 import { getTotalEarned } from './activate.js'
 import { ok, err } from '../utils/response.js'
 
-// V1/V2 无复投门槛（2026-06-11），只有 V3 收满1000须复投V3
+// 三档统一：总收益满1000 → 锁定，复投V3(260)解锁，循环
 const REINVEST_RULES = {
+  V1: { threshold: 1000, requiredTier: 'V3', requiredTotal: 260 },
+  V2: { threshold: 1000, requiredTier: 'V3', requiredTotal: 260 },
   V3: { threshold: 1000, requiredTier: 'V3', requiredTotal: 260 },
 }
 
