@@ -316,22 +316,45 @@ function checkContribution(user) {
 }
 
 // ── 平级奖 → 打给平级节点（或提现队列用户）──────────────────
+// 提现固定打30元（与申请时扣的余额一致）：
+//   仅当 nodeAmt ≥ 30（V3档）才匹配提现队列，拆成 30给提现用户 + 差额给节点
+//   V1/V2 的平级位金额不足30，不匹配提现，整额打节点
+const WITHDRAW_PAYOUT = 30
 async function buildPingjiiTasks(db, newUserId, referrerId, nodeAmt = 60) {
   const tasks = []
   for (let nodeOrder = 1; nodeOrder <= 2; nodeOrder++) {
-    const { data: waiting } = await db.from('pingjii_withdraw_queue')
-      .select('id, user_id').eq('status', 'waiting')
-      .order('created_at', { ascending: true }).limit(1).maybeSingle()
+    let waiting = null
+    if (nodeAmt >= WITHDRAW_PAYOUT) {
+      const { data } = await db.from('pingjii_withdraw_queue')
+        .select('id, user_id').eq('status', 'waiting')
+        .order('created_at', { ascending: true }).limit(1).maybeSingle()
+      waiting = data
+    }
 
     if (waiting) {
+      // 固定30打给提现用户
       tasks.push({
         receiver_id:  waiting.user_id,
-        amount:       nodeAmt,
+        amount:       WITHDRAW_PAYOUT,
         type:         `ping_ji_node_${nodeOrder}`,
-        type_label:   `平级奖（直达提现用户）`,
+        type_label:   `平级提现（直达提现用户）`,
         pq_id:        waiting.id,
       })
       await db.from('pingjii_withdraw_queue').update({ status: 'matched' }).eq('id', waiting.id)
+
+      // 差额打给节点，凑齐档位总额
+      const remainder = nodeAmt - WITHDRAW_PAYOUT
+      if (remainder > 0) {
+        const node = await getPingjiiNode(db, nodeOrder)
+        if (node) {
+          tasks.push({
+            receiver_id: node.id,
+            amount:      remainder,
+            type:        `ping_ji_node_${nodeOrder}_rest`,
+            type_label:  `平级奖节点${nodeOrder}（差额）`,
+          })
+        }
+      }
     } else {
       const node = await getPingjiiNode(db, nodeOrder)
       if (node) {
@@ -362,15 +385,15 @@ export async function creditPingjiiChain(db, payerId, nodeOrder, perLayer = null
   const user = await getUser(db, payerId)
   if (!user?.referrer_id) return
 
-  // 未传 perLayer → 查最近一笔该类型任务，取 amount/6
+  // 未传 perLayer → 按付款人最近订单的档位取每层金额
+  // （不能用任务金额÷6推断：提现匹配的任务金额固定30，会算错）
   if (perLayer === null) {
-    const { data: pt } = await db.from('payment_tasks')
-      .select('amount')
-      .eq('payer_id', payerId)
-      .eq('type', `ping_ji_node_${nodeOrder}`)
+    const { data: ord } = await db.from('activation_orders')
+      .select('tier')
+      .eq('user_id', payerId)
       .order('created_at', { ascending: false })
       .limit(1).maybeSingle()
-    perLayer = pt ? Math.round(pt.amount / 6) : 10
+    perLayer = (ord?.tier && TIERS[ord.tier]) ? TIERS[ord.tier].perLayer : 10
   }
 
   const skipLayers  = (nodeOrder - 1) * 6
