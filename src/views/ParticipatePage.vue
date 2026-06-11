@@ -9,9 +9,9 @@ const store  = useUserStore()
 
 // ── 三档配置（前端展示用）────────────────────────────────────
 const TIERS = {
-  V1: { label: 'V1 入门', total: 30,  jianDian: 10, bangFu: 4,  pingJii: 6,  perLayer: 1,  color: '#48bb78', desc: '轻松入门，低门槛体验互助模式' },
-  V2: { label: 'V2 进阶', total: 90,  jianDian: 30, bangFu: 12, pingJii: 18, perLayer: 3,  color: '#4299e1', desc: '进阶参与，收益提升3倍' },
-  V3: { label: 'V3 旗舰', total: 260, jianDian: 80, bangFu: 30, pingJii: 60, perLayer: 10, color: '#f0a500', desc: '旗舰档位，最高收益回报' },
+  V1: { label: 'V1 入门', total: 30,  jianDian: 10, bangFu: 4,  pingJii: 6,  perLayer: 1,  color: '#48bb78', desc: '只打1笔30元 · 奖励自动入余额，满30可提现' },
+  V2: { label: 'V2 进阶', total: 90,  jianDian: 30, bangFu: 12, pingJii: 18, perLayer: 3,  color: '#4299e1', desc: '只打3笔30元 · 奖励自动入余额，满30可提现' },
+  V3: { label: 'V3 旗舰', total: 260, jianDian: 80, bangFu: 30, pingJii: 60, perLayer: 10, color: '#f0a500', desc: '逐笔直达打款 · 见点80元直接到账' },
 }
 
 // ── 步骤 ──────────────────────────────────────────────────────
@@ -133,6 +133,9 @@ function getTaskMeta(type) {
   if (type === 'bang_fu')          return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', desc: '给出局老板' }
   if (type === 'bang_fu_subsidy')  return { label: '帮扶奖',   color: '#48bb78', icon: '🤝', desc: '给生活补贴参与者' }
   if (type === 'bang_fu_admin')    return { label: '帮扶预留', color: '#a0aec0', icon: '🏦', desc: '预留→给生活补贴参与者' }
+  if (type === 'flat_withdraw')    return { label: '整付30',   color: '#0e7490', icon: '💸', desc: '直达提现用户' }
+  if (type === 'flat_admin')       return { label: '整付30',   color: '#64748b', icon: '🏦', desc: '平台账户' }
+  if (type?.endsWith('_rest'))     return { label: '平级差额', color: '#4299e1', icon: '📊', desc: '平级奖差额→节点' }
   return { label: `平级第${type.replace('ping_ji_node_','')}层`, color: '#4299e1', icon: '📊', desc: '平级奖' }
 }
 

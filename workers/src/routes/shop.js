@@ -1,5 +1,6 @@
 import { getDB, getUser, getShop } from '../db.js'
 import { authMiddleware } from './auth.js'
+import { getTotalEarned } from './activate.js'
 import { ok, err } from '../utils/response.js'
 
 const REINVEST_RULES = {
@@ -58,8 +59,9 @@ export async function handleShop(request, env, pathname) {
       currentLayer = nextLayer.map(u => u.id)
     }
 
-    // 累计收款
+    // 累计收款（实收）+ 总收益（实收+余额记账，复投阈值口径）
     const totalReceived = parseFloat(me.total_received) || 0
+    const totalEarned   = await getTotalEarned(db, me)
 
     // 我的模型统计：进入我店铺的代理数、从我店铺出局的老板数
     let agentsJoined = 0
@@ -82,20 +84,23 @@ export async function handleShop(request, env, pathname) {
       .order('confirmed_at', { ascending: false })
       .limit(20)
 
-    // 平级收益记录（链上每层奖励，记在 pingjii_records 表）
+    // 余额收益记录（平级链 + V1/V2整付的见点/帮扶，记在 pingjii_records 表）
     const { data: pingjiiRecords } = await db.from('pingjii_records')
-      .select('amount, layer, from_user_no, created_at')
+      .select('amount, layer, from_user_no, created_at, reward_type')
       .eq('user_id', payload.userId)
       .order('created_at', { ascending: false })
       .limit(20)
 
     // 合并为统一明细，source 区分两种钱：
     //   paid    = 实收款（新人直接扫码打款，已到微信/支付宝）
-    //   balance = 平级余额记账（钱未到手，攒满30可申请提现）
+    //   balance = 余额记账（钱未到手，攒满30可申请提现）
     const paidTasks = (recentTasks || []).map(t => ({ ...t, source: 'paid' }))
+    const REWARD_LABELS = { jiandian: '见点奖', bangfu: '帮扶奖' }
     const pingjiiAsTasks = (pingjiiRecords || []).map(r => ({
       amount:       r.amount,
-      type_label:   `平级奖（第${r.layer}层 · 来自${r.from_user_no}）`,
+      type_label:   REWARD_LABELS[r.reward_type]
+        ? `${REWARD_LABELS[r.reward_type]}（来自${r.from_user_no}）`
+        : `平级奖（第${r.layer}层 · 来自${r.from_user_no}）`,
       confirmed_at: r.created_at,
       source:       'balance',
     }))
@@ -119,7 +124,7 @@ export async function handleShop(request, env, pathname) {
         reinvestThreshold    = rule.threshold
         reinvestRequiredTier = rule.requiredTier
         reinvestRequiredTotal = rule.requiredTotal
-        reinvestLocked       = totalReceived >= rule.threshold
+        reinvestLocked       = totalEarned >= rule.threshold
       }
     }
 
@@ -127,6 +132,7 @@ export async function handleShop(request, env, pathname) {
       directCount:   directCount || 0,
       totalCount,
       totalReceived,
+      totalEarned,
       agentsJoined,
       bossesExited,
       recentTasks:   mergedTasks,

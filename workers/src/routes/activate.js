@@ -69,6 +69,14 @@ async function getUserCurrentTier(db, userId) {
   return data?.tier || null
 }
 
+// ── 累计总收益 = 实收款 + 余额记账收益（复投阈值统一口径）────
+export async function getTotalEarned(db, user) {
+  const { data: recs } = await db.from('pingjii_records')
+    .select('amount').eq('user_id', user.id)
+  const balanceEarned = (recs || []).reduce((s, r) => s + parseFloat(r.amount || 0), 0)
+  return parseFloat(user.total_received || 0) + balanceEarned
+}
+
 // ── 复投状态 ──────────────────────────────────────────────────
 async function getReinvestStatus(db, user) {
   if (!user.is_active) return { currentTier: null, locked: false }
@@ -76,7 +84,7 @@ async function getReinvestStatus(db, user) {
   if (!currentTier) return { currentTier: null, locked: false }
   const rule = REINVEST_RULES[currentTier]
   if (!rule) return { currentTier, locked: false }
-  const totalReceived = parseFloat(user.total_received || 0)
+  const totalReceived = await getTotalEarned(db, user)
   const locked = totalReceived >= rule.threshold
   return {
     currentTier,
@@ -131,19 +139,35 @@ async function createActivationOrder(db, user, tier = 'V3') {
     await db.from('activation_orders').update({ status: 'cancelled' }).eq('id', existingOrder.id)
     await db.from('payment_tasks').update({ status: 'cancelled' })
       .eq('order_id', existingOrder.id).eq('status', 'pending')
+    // 被旧订单占用的提现队列放回等待，避免提现用户卡死
+    const pqIds = (existingOrder.payment_tasks || []).filter(t => t.pq_id).map(t => t.pq_id)
+    if (pqIds.length) {
+      await db.from('pingjii_withdraw_queue').update({ status: 'waiting' })
+        .in('id', pqIds).eq('status', 'matched')
+    }
   }
 
   if (!user.referrer_id) return err('未绑定推荐人，无法激活')
   const referrer = await getUser(db, user.referrer_id)
   if (!referrer || !referrer.is_active) return err('推荐人尚未激活')
 
-  const tasks = await buildPaymentTasks(db, user.id, referrer, tierCfg)
+  // V3 = 逐笔直达打款；V1/V2 = 30元整付 + 确认后按模型记余额
+  let tasks
+  let allocations = null
+  if (tier === 'V3') {
+    tasks = await buildPaymentTasks(db, user.id, referrer, tierCfg)
+  } else {
+    const flat = await buildFlatTasks(db, user.id, referrer, tier)
+    tasks = flat.tasks
+    allocations = flat.allocations
+  }
   if (!tasks.length) return err('无法匹配收款方，请联系客服')
 
   const { data: order, error: oe } = await db.from('activation_orders').insert({
     user_id: user.id, status: 'pending',
     total_tasks: tasks.length, confirmed_tasks: 0,
     is_repurchase: user.is_active, tier,
+    allocations,
   }).select().single()
   if (oe) return err('创建订单失败')
 
@@ -243,6 +267,109 @@ async function buildPaymentTasks(db, newUserId, referrer, tierCfg = TIERS.V3) {
   tasks.push(...pingjiiTasks)
 
   return tasks
+}
+
+// ── V1/V2 整付模式：N笔30元 + 确认后按模型记余额 ─────────────
+// V1=1笔30，V2=3笔30。每笔30优先匹配提现队列用户（提现额正好30），
+// 队列空则打给平台账户（节点1）。奖励分配清单存订单，全部确认后统一记余额。
+async function buildFlatTasks(db, newUserId, referrer, tier) {
+  const tierCfg = TIERS[tier]
+
+  // 1. 确定店铺老板（见点对象，含滑落+贡献逻辑）
+  const { shopOwnerId } = await resolveShopWithContribution(db, newUserId, referrer)
+  if (!shopOwnerId) return { tasks: [], allocations: [] }
+
+  // 2. 奖励分配清单（确认后记入各自余额）
+  const allocations = [
+    { user_id: shopOwnerId, amount: tierCfg.jianDian, reward_type: 'jiandian' },
+  ]
+
+  // 帮扶 ×2：出局直推 → 其余额；否则生活补贴玩家；都没有则归平台（不记）
+  const { data: directPushes } = await db.from('users')
+    .select('id, is_exited')
+    .eq('referrer_id', shopOwnerId)
+    .order('created_at')
+    .limit(2)
+  const subsidyReceivers = await getSubsidyReceivers(db, 2)
+  let sIdx = 0
+  for (let i = 0; i < 2; i++) {
+    const push = (directPushes || [])[i]
+    if (push && push.is_exited) {
+      allocations.push({ user_id: push.id, amount: tierCfg.bangFu, reward_type: 'bangfu' })
+    } else {
+      const sp = subsidyReceivers[sIdx]
+      if (sp) {
+        allocations.push({
+          user_id: sp.user_id, amount: tierCfg.bangFu,
+          reward_type: 'bangfu', subsidy_queue_id: sp.id,
+        })
+        sIdx++
+      }
+    }
+  }
+  // 平级链（12层每层 perLayer）不入清单，确认后由 creditPingjiiChain 处理
+
+  // 3. 打款任务：total/30 笔整付
+  const numPayments = Math.round(tierCfg.total / 30)
+  const tasks = []
+  for (let i = 0; i < numPayments; i++) {
+    const { data: waiting } = await db.from('pingjii_withdraw_queue')
+      .select('id, user_id').eq('status', 'waiting')
+      .order('created_at', { ascending: true }).limit(1).maybeSingle()
+
+    if (waiting) {
+      tasks.push({
+        receiver_id: waiting.user_id,
+        amount:      30,
+        type:        'flat_withdraw',
+        type_label:  '整付30（直达提现用户）',
+        pq_id:       waiting.id,
+      })
+      await db.from('pingjii_withdraw_queue').update({ status: 'matched' }).eq('id', waiting.id)
+    } else {
+      const node = await getPingjiiNode(db, 1)
+      if (node) {
+        tasks.push({
+          receiver_id: node.id,
+          amount:      30,
+          type:        'flat_admin',
+          type_label:  '整付30（平台账户）',
+        })
+      }
+    }
+  }
+  return { tasks, allocations }
+}
+
+// ── V1/V2 订单全部确认后：按分配清单记余额 + 平级链记账 ──────
+async function creditFlatAllocations(db, order, payer) {
+  const tierCfg = TIERS[order.tier]
+  if (!tierCfg) return
+
+  const records = []
+  for (const a of order.allocations || []) {
+    const u = await getUser(db, a.user_id)
+    if (!u) continue
+    await db.from('users').update({
+      pingjii_balance: parseFloat(u.pingjii_balance || 0) + a.amount,
+    }).eq('id', a.user_id)
+    records.push({
+      user_id:      a.user_id,
+      amount:       a.amount,
+      layer:        0,
+      from_user_no: payer.user_no || '?',
+      reward_type:  a.reward_type,
+    })
+    // 补贴玩家被记余额也算收到一笔
+    if (a.subsidy_queue_id) await updateSubsidyReceived(db, a.subsidy_queue_id)
+  }
+  if (records.length) {
+    await db.from('pingjii_records').insert(records)
+  }
+
+  // 平级链：12层每层 perLayer 记余额
+  await creditPingjiiChain(db, order.user_id, 1, tierCfg.perLayer)
+  await creditPingjiiChain(db, order.user_id, 2, tierCfg.perLayer)
 }
 
 // ── 获取生活补贴等待收款的玩家 ───────────────────────────────
@@ -481,6 +608,11 @@ export async function onAllTasksConfirmed(db, orderId) {
   }).eq('id', orderId)
 
   await db.from('users').update({ is_active: true }).eq('id', order.user_id)
+
+  // V1/V2 整付模式：按分配清单记余额（见点/帮扶）+ 平级链记账
+  if (order.tier && order.tier !== 'V3') {
+    await creditFlatAllocations(db, order, user)
+  }
 
   // 推荐人 invite_used + 1
   if (user.referrer_id) {

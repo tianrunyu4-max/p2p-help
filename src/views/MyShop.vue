@@ -68,12 +68,15 @@ const jianDianTasks = computed(() => (teamStats.value.recentTasks || []).filter(
 const bangFuTasks   = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('帮扶')))
 // 平级实收：提现被匹配后收到的直接打款
 const pingJiTasks   = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('平级') && t.source !== 'balance'))
-// 平级余额记账：链上每层 +10，钱未到手
-const pingJiBalanceRecords = computed(() => (teamStats.value.recentTasks || []).filter(t => t.source === 'balance'))
+// 平级全部（实收+余额记账），结算卡片用
+const pingJiAll     = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('平级')))
+// 余额记账记录（平级链 + V1/V2见点帮扶）
+const pingJiBalanceRecords = computed(() => (teamStats.value.recentTasks || []).filter(t => t.source === 'balance' && t.type_label?.includes('平级')))
 
 const totalJianDian = computed(() => jianDianTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 const totalBangFu   = computed(() => bangFuTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 const totalPingJi   = computed(() => pingJiTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
+const totalPingJiAll = computed(() => pingJiAll.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 const totalPingJiBalance = computed(() => pingJiBalanceRecords.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 
 // ── 加载 ──────────────────────────────────────────────────────────
@@ -169,26 +172,26 @@ function fmtTime(ts) {
         <!-- 复投进度条 -->
         <div class="today-earnings-banner" :class="{ locked: teamStats.reinvestLocked }">
           <span class="earnings-icon">{{ teamStats.reinvestLocked ? '🔒' : '📈' }}</span>
-          <span class="earnings-label">{{ teamStats.reinvestLocked ? '已锁定' : '收款进度' }}</span>
+          <span class="earnings-label">{{ teamStats.reinvestLocked ? '已锁定' : '收益进度' }}</span>
           <span class="earnings-amount gold">
-            {{ fmt(teamStats.totalReceived) }} / {{ teamStats.reinvestThreshold || '—' }}
+            {{ fmt(teamStats.totalEarned ?? teamStats.totalReceived) }} / {{ teamStats.reinvestThreshold || '—' }}
           </span>
         </div>
 
-        <!-- 进度条 -->
+        <!-- 进度条（口径=实收+余额收益） -->
         <div v-if="teamStats.reinvestThreshold" class="reinvest-progress-wrap">
           <div class="reinvest-progress-bar">
             <div class="reinvest-progress-fill"
               :class="{ locked: teamStats.reinvestLocked }"
-              :style="{ width: Math.min((teamStats.totalReceived / teamStats.reinvestThreshold) * 100, 100) + '%' }">
+              :style="{ width: Math.min(((teamStats.totalEarned ?? teamStats.totalReceived) / teamStats.reinvestThreshold) * 100, 100) + '%' }">
             </div>
           </div>
           <div class="reinvest-progress-tip">
             <span v-if="teamStats.reinvestLocked" class="tip-warn">
-              ⚠️ 已收满 ¥{{ teamStats.reinvestThreshold }}，账号已锁定
+              ⚠️ 总收益已满 ¥{{ teamStats.reinvestThreshold }}，账号已锁定
             </span>
             <span v-else class="tip-normal">
-              还差 ¥{{ Math.max(0, teamStats.reinvestThreshold - teamStats.totalReceived).toFixed(0) }} 达到复投线
+              还差 ¥{{ Math.max(0, teamStats.reinvestThreshold - (teamStats.totalEarned ?? teamStats.totalReceived)).toFixed(0) }} 达到复投线
             </span>
           </div>
         </div>
@@ -595,9 +598,9 @@ function fmtTime(ts) {
           </div>
           <div class="settle-type-card pingji-card">
             <div class="st-icon">📊</div>
-            <div class="st-name">平级实收</div>
-            <div class="st-amount">{{ fmt(totalPingJi) }}元</div>
-            <div class="st-count">{{ pingJiTasks.length }}笔</div>
+            <div class="st-name">平级奖</div>
+            <div class="st-amount">{{ fmt(totalPingJiAll) }}元</div>
+            <div class="st-count">{{ pingJiAll.length }}笔</div>
           </div>
         </div>
 
