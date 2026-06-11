@@ -132,7 +132,15 @@ onMounted(() => { if (adminToken.value) loadPingjii() })
 async function forceComplete(taskId) {
   if (!confirm('确认强制完成此任务？')) return
   await axios.post(`/api/admin/force-complete/${taskId}`)
-  loadOrders()
+  // 只更新这一条任务的状态，不重新加载全部列表
+  const idx = orders.value.findIndex(t => t.id === taskId)
+  if (idx !== -1) {
+    orders.value[idx] = {
+      ...orders.value[idx],
+      status: 'confirmed',
+      confirmed_at: new Date().toISOString(),
+    }
+  }
 }
 
 async function toggleFreeze(userId, frozen) {

@@ -223,20 +223,48 @@ async function updateOrderProgress(db, orderId) {
   }
 }
 
-// ── Cron：检测30分钟超时任务，自动AI介入 ─────────────────────
+// ── Cron：检测30分钟超时任务，自动强制确认完成 ──────────────
 export async function checkTimeouts(env) {
   const db = getDB(env)
   const now = new Date().toISOString()
 
   const { data: timedOut } = await db.from('payment_tasks')
-    .select('id, order_id, receiver_id, amount')
+    .select('id, order_id, payer_id, receiver_id, amount, type, pq_id')
     .eq('status', 'screenshot_uploaded')
     .lt('deadline', now)
 
   if (!timedOut?.length) return
 
   for (const task of timedOut) {
-    await db.from('payment_tasks').update({ status: 'ai_review' }).eq('id', task.id)
-    // TODO: 可接入微信/短信通知推送
+    // 自动确认（相当于强制完成）
+    await db.from('payment_tasks').update({
+      status:       'confirmed',
+      confirmed_at: new Date().toISOString(),
+    }).eq('id', task.id)
+
+    // 更新收款方累计收款
+    const receiver = await getUser(db, task.receiver_id)
+    if (receiver) {
+      await db.from('users').update({
+        total_received: (parseFloat(receiver.total_received) || 0) + parseFloat(task.amount),
+      }).eq('id', task.receiver_id)
+    }
+
+    // 平级节点 → 给链上用户记余额
+    if (task.type === 'ping_ji_node_1') {
+      creditPingjiiChain(db, task.payer_id, 1).catch(() => {})
+      if (task.pq_id) {
+        await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+      }
+    }
+    if (task.type === 'ping_ji_node_2') {
+      creditPingjiiChain(db, task.payer_id, 2).catch(() => {})
+      if (task.pq_id) {
+        await db.from('pingjii_withdraw_queue').update({ status: 'completed' }).eq('id', task.pq_id)
+      }
+    }
+
+    // 检查订单是否全部完成 → 触发激活
+    await updateOrderProgress(db, task.order_id)
   }
 }
