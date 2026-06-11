@@ -22,9 +22,8 @@ const TIERS = {
 }
 
 // ── 复投规则：收满阈值后必须复投指定档位才能解锁 ──────────────
+// V1/V2 无复投门槛（2026-06-11），只有 V3 收满1000须复投V3
 const REINVEST_RULES = {
-  V1: { threshold: 200,  requiredTier: 'V2' },
-  V2: { threshold: 500,  requiredTier: 'V3' },
   V3: { threshold: 1000, requiredTier: 'V3' },
 }
 

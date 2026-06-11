@@ -209,6 +209,9 @@ function fmtTime(ts) {
         <div v-else-if="teamStats.reinvestThreshold" class="activate-guide-tip">
           💡 累计收款满 ¥{{ teamStats.reinvestThreshold }} 后需复投{{ teamStats.reinvestRequiredTier }}（¥{{ teamStats.reinvestRequiredTotal }}）继续
         </div>
+        <div v-else-if="teamStats.currentTier" class="activate-guide-tip">
+          💡 当前档位（{{ teamStats.currentTier }}）无复投限制，收益无上限
+        </div>
         <div v-else class="activate-guide-tip">
           💡 激活后查看收款进度
         </div>
