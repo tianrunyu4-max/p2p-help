@@ -180,7 +180,7 @@ async function disputeTask(db, taskId, userId) {
   return ok({ status: 'ai_review' })
 }
 
-// ── 获取待我确认的任务列表 ────────────────────────────────────
+// ── 获取待我确认的任务列表 + 最近已完成收款 ──────────────────
 async function getPendingConfirm(db, userId) {
   const { data: tasks } = await db.from('payment_tasks')
     .select('*')
@@ -188,21 +188,35 @@ async function getPendingConfirm(db, userId) {
     .in('status', ['screenshot_uploaded', 'ai_review'])
     .order('created_at', { ascending: false })
 
-  if (!tasks?.length) return ok([])
+  // 最近已确认的收款（近7天，最多20条）
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
+  const { data: recent } = await db.from('payment_tasks')
+    .select('id, payer_id, amount, type_label, status, confirmed_at, auto_confirmed')
+    .eq('receiver_id', userId)
+    .eq('status', 'confirmed')
+    .gte('confirmed_at', sevenDaysAgo)
+    .order('confirmed_at', { ascending: false })
+    .limit(20)
 
   // 附加付款方信息
-  const payerIds = [...new Set(tasks.map(t => t.payer_id))]
-  const { data: payers } = await db.from('users')
-    .select('id, user_no').in('id', payerIds)
+  const allTasks = [...(tasks || []), ...(recent || [])]
+  const payerIds = [...new Set(allTasks.map(t => t.payer_id))]
   const payerMap = {}
-  for (const p of payers || []) payerMap[p.id] = p
+  if (payerIds.length) {
+    const { data: payers } = await db.from('users')
+      .select('id, user_no').in('id', payerIds)
+    for (const p of payers || []) payerMap[p.id] = p
+  }
 
-  const result = tasks.map(t => ({
-    ...t,
-    payer_no: payerMap[t.payer_id]?.user_no || '?',
+  const pending = (tasks || []).map(t => ({
+    ...t, payer_no: payerMap[t.payer_id]?.user_no || '?',
+  }))
+  const recentDone = (recent || []).map(t => ({
+    ...t, payer_no: payerMap[t.payer_id]?.user_no || '?',
   }))
 
-  return ok(result)
+  // 兼容旧版前端：data 仍是待确认数组；新字段挂在 recentDone
+  return ok({ pending, recentDone, length: pending.length })
 }
 
 // ── 更新订单确认进度 → 若全部完成则触发激活 ──────────────────
@@ -236,10 +250,11 @@ export async function checkTimeouts(env) {
   if (!timedOut?.length) return
 
   for (const task of timedOut) {
-    // 自动确认（相当于强制完成）
+    // 自动确认（相当于强制完成），标记 auto_confirmed 供前端展示
     await db.from('payment_tasks').update({
-      status:       'confirmed',
-      confirmed_at: new Date().toISOString(),
+      status:         'confirmed',
+      confirmed_at:   new Date().toISOString(),
+      auto_confirmed: true,
     }).eq('id', task.id)
 
     // 更新收款方累计收款
