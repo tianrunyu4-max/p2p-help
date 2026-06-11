@@ -33,17 +33,26 @@ gh run download <runId> --repo tianrunyu4-max/p2p-help --dir "C:/Users/Administr
 
 ---
 
-## 当前业务制度（最新版，2026-06-10）
+## 当前业务制度（最新版，2026-06-11）
 
-### 三档激活体系（全部 P2P 点对点）
-| 档位 | 激活金 | 见点奖 | 帮扶奖 | 平级奖 | 平级每层 |
-|------|--------|--------|--------|--------|---------|
-| V1 入门 | **30元** | 10元 | 4×2=8元 | 6×2=12元 | 1元 |
-| V2 进阶 | **90元** | 30元 | 12×2=24元 | 18×2=36元 | 3元 |
-| V3 旗舰 | **260元** | 80元 | 30×2=60元 | 60×2=120元 | 10元 |
+### 三档激活体系
+| 档位 | 激活金 | 打款方式 | 见点奖 | 帮扶奖 | 平级每层 |
+|------|--------|---------|--------|--------|---------|
+| V1 入门 | **30元** | **1笔30整付** | 10元入余额 | 4×2入余额 | 1元入余额 |
+| V2 进阶 | **90元** | **3笔30整付** | 30元入余额 | 12×2入余额 | 3元入余额 |
+| V3 旗舰 | **260元** | 逐笔直打（5笔） | 80元直达老板 | 30×2直打 | 10元入余额 |
+
+### ⚠️ 两种资金模式（2026-06-11 重构）
+- **V3 = 逐笔直打**：见点80直接扫老板的码，帮扶直打，平级60×2给节点+链上记余额
+- **V1/V2 = 30元整付+记账分配**：
+  - 每笔30优先匹配提现队列用户（提现额正好30），队列空打平台账户（节点1）
+  - 订单全部确认后，按 `allocations` 清单记余额（见点/帮扶）+ creditPingjiiChain 12层
+  - 任务type：`flat_withdraw`（直达提现用户）/ `flat_admin`（平台账户）
+- **平级提现**：申请扣余额30 → 入队列 → 被30整付或V3平级位匹配（V3拆30提现+30差额给节点）
+- **两种钱的区分**：`source: 'paid'`实收（到微信）/ `'balance'`余额记账（满30提现）
+- **复投阈值口径 = totalEarned**（实收total_received + pingjii_records总和）
 
 - 帮扶奖：给老板直推中已出局者；未出局→匹配生活补贴玩家
-- 平级奖：沿邀请链向上 12 层，直接打款
 - 前端不显示"12层"，统一用"平级链"
 
 ### 三档复投规则（2026-06-10 新增）
@@ -109,6 +118,21 @@ gh run download <runId> --repo tianrunyu4-max/p2p-help --dir "C:/Users/Administr
 ---
 
 ## ✅ 已完成改动记录（不要重复做）
+
+### 2026-06-11 V1/V2整付模式 + 明细体系
+- `activate.js`：buildFlatTasks（30整付匹配）、creditFlatAllocations（确认后记余额）、getTotalEarned（复投口径）、防重复订单（pending复用/换档作废+队列回退）
+- `orders.js`：checkTimeouts 30分钟超时自动确认（auto_confirmed标记）、pending-confirm返回{pending,recentDone}
+- `admin.js`：force-complete加CAS守卫防重复加钱
+- `shop.js`：team-stats返回totalEarned/pingjiiBalance/source标记，pingjii_records按reward_type映射标签
+- `MyShop.vue`：明细✅实收/💰记入余额标签、平级余额行、收益进度用totalEarned
+- `PendingConfirm.vue`：近7天收款记录+超时自动确认橙色标签
+- 新表 `pingjii_records`（user_id/amount/layer/from_user_no/reward_type）
+- 新列：activation_orders.allocations(JSONB)、payment_tasks.auto_confirmed、pingjii_records.reward_type
+
+### 2026-06-10 OTA热更新 + 0撸 + 社区AI
+- `@capgo/capacitor-updater`：APK后台静默更新，deploy.yml打包bundle.zip，/api/app-update版本接口
+- `zeroPosts.js` + CommunityPage 0撸tab：每天20条/2图/30字，表zero_posts
+- community.js AI提示词更新为三档制度
 
 ### 2026-06-10 三档复投锁定体系
 - `activate.js`：REINVEST_RULES，getUserCurrentTier，getReinvestStatus，/api/activate/reinvest-status
