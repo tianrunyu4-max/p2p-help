@@ -63,13 +63,18 @@ const isOwner   = computed(() => me.value.role === 'owner')
 const isManager = computed(() => me.value.role === 'manager')
 
 // 按类型分类收款记录
+// source: 'paid' = 实收款（直接到微信/支付宝）；'balance' = 平级余额记账（提现制）
 const jianDianTasks = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('见点')))
 const bangFuTasks   = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('帮扶')))
-const pingJiTasks   = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('平级')))
+// 平级实收：提现被匹配后收到的直接打款
+const pingJiTasks   = computed(() => (teamStats.value.recentTasks || []).filter(t => t.type_label?.includes('平级') && t.source !== 'balance'))
+// 平级余额记账：链上每层 +10，钱未到手
+const pingJiBalanceRecords = computed(() => (teamStats.value.recentTasks || []).filter(t => t.source === 'balance'))
 
 const totalJianDian = computed(() => jianDianTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 const totalBangFu   = computed(() => bangFuTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 const totalPingJi   = computed(() => pingJiTasks.value.reduce((s, t) => s + parseFloat(t.amount), 0))
+const totalPingJiBalance = computed(() => pingJiBalanceRecords.value.reduce((s, t) => s + parseFloat(t.amount), 0))
 
 // ── 加载 ──────────────────────────────────────────────────────────
 async function loadAll() {
@@ -476,19 +481,19 @@ function fmtTime(ts) {
           <span class="badge-status active">✅ 已激活</span>
         </div>
 
-        <div class="partner-dividend-stats" v-if="pingJiTasks.length > 0">
+        <div class="partner-dividend-stats" v-if="pingJiTasks.length > 0 || pingJiBalanceRecords.length > 0">
           <div class="stats-header">
             <span class="stats-title">平级奖统计</span>
-            <span class="pool-badge">10元/节点 · 平级链</span>
+            <span class="pool-badge">每层奖励先入余额 · 满30提现</span>
           </div>
           <div class="stats-grid">
             <div class="stat-box">
-              <span class="stat-label">累计收款</span>
-              <span class="stat-value gold">{{ fmt(totalPingJi) }}元</span>
+              <span class="stat-label">记入余额累计</span>
+              <span class="stat-value gold">{{ fmt(totalPingJiBalance) }}元</span>
             </div>
             <div class="stat-box">
-              <span class="stat-label">收款次数</span>
-              <span class="stat-value gold">{{ pingJiTasks.length }}次</span>
+              <span class="stat-label">提现实收</span>
+              <span class="stat-value gold">{{ fmt(totalPingJi) }}元</span>
             </div>
           </div>
         </div>
@@ -559,10 +564,14 @@ function fmtTime(ts) {
               </div>
               <div>
                 <div class="task-label">{{ t.type_label }}</div>
-                <div class="task-time">{{ fmtTime(t.confirmed_at) }}</div>
+                <div class="task-time">
+                  {{ fmtTime(t.confirmed_at) }}
+                  <span v-if="t.source === 'balance'" class="src-badge balance">💰 记入余额</span>
+                  <span v-else class="src-badge paid">✅ 实收</span>
+                </div>
               </div>
             </div>
-            <div class="task-amount">+{{ t.amount }}元</div>
+            <div class="task-amount" :class="{ 'amount-balance': t.source === 'balance' }">+{{ t.amount }}元</div>
           </div>
         </div>
         <div v-else class="empty-tip">暂无收益记录</div>
@@ -586,15 +595,27 @@ function fmtTime(ts) {
           </div>
           <div class="settle-type-card pingji-card">
             <div class="st-icon">📊</div>
-            <div class="st-name">平级奖</div>
+            <div class="st-name">平级实收</div>
             <div class="st-amount">{{ fmt(totalPingJi) }}元</div>
             <div class="st-count">{{ pingJiTasks.length }}笔</div>
           </div>
         </div>
 
         <div class="settle-total-row">
-          <span>合计收款</span>
+          <span>合计实收款（已到微信/支付宝）</span>
           <span class="gold-text">{{ fmt(teamStats.totalReceived) }} 元</span>
+        </div>
+
+        <!-- 平级余额（提现制，与实收款分开） -->
+        <div class="pingji-balance-row">
+          <div class="pjb-left">
+            <span class="pjb-icon">💰</span>
+            <div>
+              <div class="pjb-title">平级余额（提现制）</div>
+              <div class="pjb-sub">链上奖励先记余额，满30元可申请提现</div>
+            </div>
+          </div>
+          <span class="pjb-amount">¥{{ pingjiiBalance.toFixed(0) }}</span>
         </div>
 
         <div v-if="(teamStats.recentTasks || []).length" class="task-list" style="margin-top:12px">
@@ -605,10 +626,14 @@ function fmtTime(ts) {
               </div>
               <div>
                 <div class="task-label">{{ t.type_label }}</div>
-                <div class="task-time">{{ fmtTime(t.confirmed_at) }}</div>
+                <div class="task-time">
+                  {{ fmtTime(t.confirmed_at) }}
+                  <span v-if="t.source === 'balance'" class="src-badge balance">💰 记入余额</span>
+                  <span v-else class="src-badge paid">✅ 实收</span>
+                </div>
               </div>
             </div>
-            <div class="task-amount">+{{ t.amount }}元</div>
+            <div class="task-amount" :class="{ 'amount-balance': t.source === 'balance' }">+{{ t.amount }}元</div>
           </div>
         </div>
         <div v-else class="empty-tip">暂无结算明细</div>
@@ -915,6 +940,20 @@ function fmtTime(ts) {
 
 /* ══ 收益/结算 ══════════════════════════════════════════════════ */
 .earnings-summary-row { display:flex; justify-content:space-between; font-size:14px; color:#555; margin-bottom:12px; padding:10px; background:#f9fafb; border-radius:8px; }
+
+/* 来源标签：实收 vs 记入余额 */
+.src-badge { font-size:10px; padding:1px 6px; border-radius:6px; font-weight:600; margin-left:4px; }
+.src-badge.paid    { background:#f0fdf4; color:#16a34a; }
+.src-badge.balance { background:#ecfeff; color:#0e7490; }
+.task-amount.amount-balance { color:#0e7490; }
+
+/* 平级余额行（提现制） */
+.pingji-balance-row { display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding:12px 14px; background:linear-gradient(135deg,#ecfeff,#cffafe); border:1px solid #a5f3fc; border-radius:10px; }
+.pjb-left { display:flex; align-items:center; gap:10px; }
+.pjb-icon { font-size:22px; }
+.pjb-title { font-size:13px; font-weight:700; color:#0e7490; }
+.pjb-sub { font-size:11px; color:#0891b2; }
+.pjb-amount { font-size:20px; font-weight:900; color:#0e7490; }
 .gold-text { font-weight:900; color:#c05621; }
 .settle-type-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
 .settle-type-card { border-radius:10px; padding:12px; text-align:center; }

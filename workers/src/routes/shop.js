@@ -89,13 +89,17 @@ export async function handleShop(request, env, pathname) {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    // 合并为统一明细：平级记录转成与 payment_tasks 相同的展示格式
+    // 合并为统一明细，source 区分两种钱：
+    //   paid    = 实收款（新人直接扫码打款，已到微信/支付宝）
+    //   balance = 平级余额记账（钱未到手，攒满30可申请提现）
+    const paidTasks = (recentTasks || []).map(t => ({ ...t, source: 'paid' }))
     const pingjiiAsTasks = (pingjiiRecords || []).map(r => ({
       amount:       r.amount,
       type_label:   `平级奖（第${r.layer}层 · 来自${r.from_user_no}）`,
       confirmed_at: r.created_at,
+      source:       'balance',
     }))
-    const mergedTasks = [...(recentTasks || []), ...pingjiiAsTasks]
+    const mergedTasks = [...paidTasks, ...pingjiiAsTasks]
       .sort((a, b) => new Date(b.confirmed_at) - new Date(a.confirmed_at))
       .slice(0, 30)
 
