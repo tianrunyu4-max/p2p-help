@@ -1,0 +1,3 @@
+# Cloudflare Pages Redirects
+# Disabled to avoid infinite loop with Worker Assets
+# Hash mode doesn't need SPA fallback

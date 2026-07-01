@@ -3,16 +3,36 @@ main = "src/index.js"
 compatibility_date = "2024-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 前端静态资源（npm run build 输出到 ../dist）
 [assets]
 directory = "../dist"
 binding = "ASSETS"
 
-[triggers]
-crons = ["* * * * *"]
+[vars]
+ENVIRONMENT = "production"
+CORS_ORIGIN = "https://p2p-help.uaegoucai.workers.dev"
 
-# 环境变量通过 wrangler secret 设置:
-# wrangler secret put SUPABASE_URL
-# wrangler secret put SUPABASE_ANON_KEY
-# wrangler secret put JWT_SECRET
-# wrangler secret put ADMIN_PASSWORD
+[triggers]
+crons = ["0 16 * * *"]
+
+# KV 命名空间（复用同账号下已有的，rate-limiting 数据按用户 key 隔离）
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "da1dc35fdcee4ed188e393f292cb8059"
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "da1dc35fdcee4ed188e393f292cb8059"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "beb46d40f006465ca0d83d1b9ca539f9"
+
+[[kv_namespaces]]
+binding = "MINING"
+id = "f90bf5337c6e4bc985097c3273af5bab"
+
+# 敏感环境变量通过 Cloudflare Dashboard -> Settings -> Variables 配置:
+# SUPABASE_URL       = p2p-help 自己的 Supabase URL
+# SUPABASE_SERVICE_KEY = p2p-help 自己的 service_role key
+# JWT_SECRET         = 自定义 JWT 密钥
+# ENGINE_API_KEY     = 引擎 API 密钥
