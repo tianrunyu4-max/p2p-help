@@ -1,19 +1,15 @@
 {
-    "name": "task-wall-workers",
-    "version": "1.0.0",
-    "description": "Task Wall API - Cloudflare Workers",
-    "main": "src/index.js",
-    "scripts": {
-        "dev": "wrangler dev",
-        "deploy": "wrangler deploy",
-        "tail": "wrangler tail"
-    },
-    "dependencies": {
-        "@supabase/supabase-js": "^2.39.0",
-        "itty-router": "^4.0.27",
-        "viem": "^2.21.0"
-    },
-    "devDependencies": {
-        "wrangler": "^3.22.0"
-    }
+  "name": "p2p-help-worker",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
 }

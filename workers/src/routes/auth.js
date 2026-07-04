@@ -1,690 +1,156 @@
-/**
- * 认证路由 - Auth Routes
- */
+import { getDB, generateUserId, generateInviteCode } from '../db.js'
+import { signJWT, verifyJWT, getTokenFromRequest } from '../utils/jwt.js'
+import { ok, err } from '../utils/response.js'
 
-import { Router } from 'itty-router'
+export async function handleAuth(request, env, pathname) {
 
-const router = Router({ base: '/api/auth' })
+  // POST /api/auth/init — 首次进入自动建档（无需邮箱）
+  // Body: { localId: '6位ID' }  → 若已存在直接返回token，否则建新用户
+  if (pathname === '/api/auth/init' && request.method === 'POST') {
+    const { localId } = await request.json()
+    if (!localId) return err('缺少ID')
+    const db = getDB(env)
 
-/**
- * POST /api/auth/register
- * 用户注册
- */
-router.post('/register', async (request) => {
-    const supabase = request.supabase
+    // 查是否已存在
+    const { data: existing } = await db.from('users')
+      .select('*').eq('user_no', localId).maybeSingle()
 
-    try {
-        const { phone, password, referrerCode } = await request.json()
-
-        if (!phone || !password) {
-            return Response.json({ code: 400, message: '手机号和密码不能为空' })
-        }
-
-        // 检查手机号是否已注册
-        const { data: existing } = await supabase
-            .from('users')
-            .select('id')
-            .eq('phone', phone)
-            .single()
-
-        if (existing) {
-            return Response.json({ code: 400, message: '该手机号已注册' })
-        }
-
-        // 查找推荐人
-        let referrerId = null
-        if (referrerCode) {
-            const { data: referrer } = await supabase
-                .from('users')
-                .select('id')
-                .eq('invite_code', referrerCode)
-                .single()
-
-            if (referrer) {
-                referrerId = referrer.id
-            }
-        }
-
-        // 使用 Supabase Auth 创建用户
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-            phone,
-            password
-        })
-
-        if (authError) {
-            return Response.json({ code: 400, message: authError.message })
-        }
-
-        // 创建用户记录
-        const inviteCode = generateInviteCode()
-        const { error: insertError } = await supabase.from('users').insert({
-            id: authData.user.id,
-            phone,
-            invite_code: inviteCode,
-            referrer_id: referrerId
-        })
-
-        if (insertError) {
-            console.error('[Register] Insert error:', insertError)
-        }
-
-        // 更新推荐人的直推数
-        if (referrerId) {
-            await supabase.rpc('increment_direct_push', { p_user_id: referrerId })
-        }
-
-        return Response.json({
-            code: 200,
-            message: '注册成功',
-            data: {
-                userId: authData.user.id,
-                inviteCode
-            }
-        })
-
-    } catch (error) {
-        console.error('[Register] Error:', error)
-        return Response.json({ code: 500, message: '注册失败' }, { status: 500 })
+    if (existing) {
+      if (existing.is_frozen) return err('账户已被冻结')
+      const token = await signJWT({ userId: existing.id, userNo: existing.user_no }, env.JWT_SECRET)
+      return ok({ token, user: sanitizeUser(existing), isNew: false })
     }
-})
 
-/**
- * POST /api/auth/login
- * 用户登录
- */
-router.post('/login', async (request) => {
-    const supabase = request.supabase
+    // 新用户建档（未激活，无推荐人）
+    const invCode = await generateInviteCode(db)
+    const { data: newUser, error } = await db.from('users').insert({
+      user_no:     localId,
+      invite_code: invCode,
+      invite_used: 0,
+      is_active:   false,
+      is_frozen:   false,
+      is_exited:   false,
+      is_node:     false,
+      role:        'member',
+      total_received: 0,
+    }).select().single()
 
-    try {
-        const { phone, password } = await request.json()
+    if (error) return err('建档失败：' + error.message)
+    const token = await signJWT({ userId: newUser.id, userNo: newUser.user_no }, env.JWT_SECRET)
+    return ok({ token, user: sanitizeUser(newUser), isNew: true })
+  }
 
-        if (!phone || !password) {
-            return Response.json({ code: 400, message: '手机号和密码不能为空' })
-        }
+  // POST /api/auth/participate — 填邀请码参与（绑定推荐人 + 设置安全问题）
+  if (pathname === '/api/auth/participate' && request.method === 'POST') {
+    const payload = await authMiddleware(request, env)
+    if (!payload) return err('未登录', 401)
 
-        // Supabase Auth 登录
-        const { data, error } = await supabase.auth.signInWithPassword({
-            phone,
-            password
-        })
+    const { inviteCode, securityAnswer } = await request.json()
+    if (!inviteCode) return err('请输入邀请码')
+    if (!securityAnswer || securityAnswer.trim().length < 2) return err('请设置安全问题答案（至少2位）')
 
-        if (error) {
-            return Response.json({ code: 401, message: '手机号或密码错误' })
-        }
+    const db = getDB(env)
+    const me = await db.from('users').select('*').eq('id', payload.userId).single().then(r => r.data)
+    if (!me) return err('用户不存在')
+    if (me.referrer_id) return err('您已绑定推荐人，无需重复操作')
 
-        // 获取用户信息
-        const { data: user } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.user.id)
-            .single()
+    // 验证邀请码
+    const { data: referrer } = await db.from('users')
+      .select('id, user_no, invite_used, is_frozen, is_active')
+      .eq('invite_code', inviteCode.toUpperCase())
+      .maybeSingle()
 
-        // 更新最后登录
-        await supabase
-            .from('users')
-            .update({
-                last_login_at: new Date().toISOString(),
-                last_login_ip: request.headers.get('CF-Connecting-IP')
-            })
-            .eq('id', data.user.id)
+    if (!referrer) return err('邀请码无效')
+    if (referrer.id === payload.userId) return err('不能使用自己的邀请码')
+    if (referrer.is_frozen) return err('邀请人账户已被冻结')
+    if ((referrer.invite_used || 0) >= 2) return err('该邀请码已使用2次')
+    if (!referrer.is_active) return err('邀请人尚未激活')
 
-        return Response.json({
-            code: 200,
-            message: '登录成功',
-            data: {
-                token: data.session.access_token,
-                refreshToken: data.session.refresh_token,
-                user: {
-                    id: user.id,
-                    phone: user.phone,
-                    username: user.username,
-                    is_member: user.is_member,
-                    invite_code: user.invite_code
-                }
-            }
-        })
+    // 保存安全答案（取身份证后6位或自定义答案，存哈希）
+    const answerHash = await hashAnswer(securityAnswer.trim().toLowerCase(), env.JWT_SECRET)
 
-    } catch (error) {
-        console.error('[Login] Error:', error)
-        return Response.json({ code: 500, message: '登录失败' }, { status: 500 })
-    }
-})
+    await db.from('users').update({
+      referrer_id:     referrer.id,
+      security_answer: answerHash,
+    }).eq('id', payload.userId)
 
-/**
- * POST /api/auth/logout
- * 退出登录
- */
-router.post('/logout', async (request) => {
-    const supabase = request.supabase
+    const updatedUser = await db.from('users').select('*').eq('id', payload.userId).single().then(r => r.data)
+    return ok({ user: sanitizeUser(updatedUser), message: '绑定成功，请开始激活' })
+  }
 
-    try {
-        await supabase.auth.signOut()
-        return Response.json({ code: 200, message: '已退出登录' })
-    } catch (error) {
-        return Response.json({ code: 200, message: '已退出登录' })
-    }
-})
+  // POST /api/auth/set-security — 随时设置/修改安全答案（需登录）
+  if (pathname === '/api/auth/set-security' && request.method === 'POST') {
+    const payload = await authMiddleware(request, env)
+    if (!payload) return err('未登录', 401)
 
-/**
- * GET /api/auth/user/:userId
- * 获取用户信息
- */
-router.get('/user/:userId', async (request) => {
-    const { userId } = request.params
-    const supabase = request.supabase
+    const { securityAnswer } = await request.json()
+    if (!securityAnswer || securityAnswer.trim().length < 2) return err('安全答案至少2位')
 
-    try {
-        const { data: user, error } = await supabase
-            .from('users')
-            .select(`
-        id, phone, username, is_member, card_type,
-        subscription_end_date, coin_balance, invite_code,
-        direct_push_count, created_at, transaction_password
-      `)
-            .eq('id', userId)
-            .single()
+    const db = getDB(env)
+    const answerHash = await hashAnswer(securityAnswer.trim().toLowerCase(), env.JWT_SECRET)
+    await db.from('users').update({ security_answer: answerHash }).eq('id', payload.userId)
+    return ok({ message: '安全答案已保存' })
+  }
 
-        if (error || !user) {
-            return Response.json({ code: 404, message: '用户不存在' })
-        }
+  // POST /api/auth/recover — 凭ID切换账号（换设备恢复session）
+  if (pathname === '/api/auth/recover' && request.method === 'POST') {
+    const { userId } = await request.json()
+    if (!userId) return err('请输入ID')
 
-        // 返回是否设置了交易密码，但不返回密码本身
-        const userData = {
-            ...user,
-            has_transaction_password: !!user.transaction_password
-        }
-        delete userData.transaction_password
+    const db = getDB(env)
+    const { data: user } = await db.from('users')
+      .select('*').eq('user_no', userId).maybeSingle()
 
-        return Response.json({ code: 200, data: userData })
+    if (!user) return err('ID不存在，请确认后重试')
+    if (user.is_frozen) return err('账户已被冻结')
 
-    } catch (error) {
-        console.error('[Get User] Error:', error)
-        return Response.json({ code: 500, message: '获取用户信息失败' }, { status: 500 })
-    }
-})
+    const token = await signJWT({ userId: user.id, userNo: user.user_no }, env.JWT_SECRET)
+    return ok({ token, user: sanitizeUser(user) })
+  }
 
-/**
- * PUT /api/auth/avatar
- * 更新用户头像
- */
-router.put('/avatar', async (request) => {
-    const supabase = request.supabase
+  // GET /api/auth/me
+  if (pathname === '/api/auth/me' && request.method === 'GET') {
+    const payload = await authMiddleware(request, env)
+    if (!payload) return err('未登录', 401)
+    const db = getDB(env)
+    const { data: user } = await db.from('users').select('*').eq('id', payload.userId).single()
+    if (!user) return err('用户不存在', 404)
+    return ok(sanitizeUser(user))
+  }
 
-    try {
-        const { userId, avatarUrl } = await request.json()
+  // 兼容旧版 register/login（暂时保留）
+  if (pathname === '/api/auth/register' && request.method === 'POST') {
+    return err('请使用新版参与流程')
+  }
+  if (pathname === '/api/auth/login' && request.method === 'POST') {
+    const { email } = await request.json().catch(() => ({}))
+    if (!email) return err('请输入账号')
+    const db = getDB(env)
+    const { data: user } = await db.from('users').select('*').eq('email', email.toLowerCase()).maybeSingle()
+    if (!user) return err('用户不存在')
+    if (user.is_frozen) return err('账户已被冻结')
+    const token = await signJWT({ userId: user.id, userNo: user.user_no }, env.JWT_SECRET)
+    return ok({ token, user: sanitizeUser(user) })
+  }
 
-        if (!userId || !avatarUrl) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-
-        // 更新用户头像
-        const { error } = await supabase
-            .from('users')
-            .update({ avatar_url: avatarUrl })
-            .eq('id', userId)
-
-        if (error) {
-            console.error('[Update Avatar] Error:', error)
-            return Response.json({ code: 500, message: '更新头像失败' }, { status: 500 })
-        }
-
-        return Response.json({
-            code: 200,
-            message: '头像更新成功',
-            data: { avatarUrl }
-        })
-
-    } catch (error) {
-        console.error('[Update Avatar] Error:', error)
-        return Response.json({ code: 500, message: '更新头像失败' }, { status: 500 })
-    }
-})
-
-/**
- * GET /api/auth/avatar/:userId
- * 获取用户头像
- */
-router.get('/avatar/:userId', async (request) => {
-    const { userId } = request.params
-    const supabase = request.supabase
-
-    try {
-        const { data, error } = await supabase
-            .from('users')
-            .select('avatar_url')
-            .eq('id', userId)
-            .single()
-
-        if (error || !data) {
-            return Response.json({ code: 404, message: '用户不存在' })
-        }
-
-        return Response.json({
-            code: 200,
-            data: { avatarUrl: data.avatar_url }
-        })
-
-    } catch (error) {
-        console.error('[Get Avatar] Error:', error)
-        return Response.json({ code: 500, message: '获取头像失败' }, { status: 500 })
-    }
-})
-
-/**
- * 生成邀请码
- */
-function generateInviteCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    let code = ''
-    for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return code
+  return null
 }
 
-/**
- * SHA-256 哈希函数
- */
-async function hashPassword(password) {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+export async function authMiddleware(request, env) {
+  const token = getTokenFromRequest(request)
+  if (!token) return null
+  return verifyJWT(token, env.JWT_SECRET)
 }
 
-/**
- * POST /api/auth/transaction-password
- * 设置交易密码
- */
-router.post('/transaction-password', async (request) => {
-    const supabase = request.supabase
+async function hashAnswer(answer, secret) {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(answer + (secret || 'p2p-salt'))
+  const buf = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
 
-    try {
-        const { userId, password } = await request.json()
-
-        if (!userId || !password) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-
-        if (!/^\d{6}$/.test(password)) {
-            return Response.json({ code: 400, message: '交易密码必须是6位数字' })
-        }
-
-        // 检查用户是否已设置交易密码
-        const { data: user, error: userError } = await supabase
-            .from('users')
-            .select('transaction_password')
-            .eq('id', userId)
-            .single()
-
-        if (userError || !user) {
-            return Response.json({ code: 404, message: '用户不存在' })
-        }
-
-        if (user.transaction_password) {
-            return Response.json({ code: 400, message: '已设置交易密码，请使用修改功能' })
-        }
-
-        // 哈希密码后存储
-        const hashedPassword = await hashPassword(password)
-
-        const { error: updateError } = await supabase
-            .from('users')
-            .update({ transaction_password: hashedPassword })
-            .eq('id', userId)
-
-        if (updateError) {
-            console.error('[Set Transaction Password] Error:', updateError)
-            return Response.json({ code: 500, message: '设置失败' }, { status: 500 })
-        }
-
-        return Response.json({ code: 200, message: '交易密码设置成功' })
-
-    } catch (error) {
-        console.error('[Set Transaction Password] Error:', error)
-        return Response.json({ code: 500, message: '设置失败' }, { status: 500 })
-    }
-})
-
-/**
- * PUT /api/auth/transaction-password
- * 修改交易密码
- */
-router.put('/transaction-password', async (request) => {
-    const supabase = request.supabase
-
-    try {
-        const { userId, currentPassword, newPassword } = await request.json()
-
-        if (!userId || !currentPassword || !newPassword) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-
-        if (!/^\d{6}$/.test(newPassword)) {
-            return Response.json({ code: 400, message: '新密码必须是6位数字' })
-        }
-
-        // 获取用户当前密码
-        const { data: user, error: userError } = await supabase
-            .from('users')
-            .select('transaction_password')
-            .eq('id', userId)
-            .single()
-
-        if (userError || !user) {
-            return Response.json({ code: 404, message: '用户不存在' })
-        }
-
-        if (!user.transaction_password) {
-            return Response.json({ code: 400, message: '请先设置交易密码' })
-        }
-
-        // 验证当前密码
-        const hashedCurrent = await hashPassword(currentPassword)
-        if (user.transaction_password !== hashedCurrent) {
-            return Response.json({ code: 400, message: '当前密码错误' })
-        }
-
-        // 更新为新密码
-        const hashedNew = await hashPassword(newPassword)
-
-        const { error: updateError } = await supabase
-            .from('users')
-            .update({ transaction_password: hashedNew })
-            .eq('id', userId)
-
-        if (updateError) {
-            console.error('[Change Transaction Password] Error:', updateError)
-            return Response.json({ code: 500, message: '修改失败' }, { status: 500 })
-        }
-
-        return Response.json({ code: 200, message: '交易密码修改成功' })
-
-    } catch (error) {
-        console.error('[Change Transaction Password] Error:', error)
-        return Response.json({ code: 500, message: '修改失败' }, { status: 500 })
-    }
-})
-
-/**
- * POST /api/auth/verify-password
- * 验证交易密码
- */
-router.post('/verify-password', async (request) => {
-    const supabase = request.supabase
-
-    try {
-        const { userId, password } = await request.json()
-
-        if (!userId || !password) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-
-        // 验证密码格式（必须是6位数字）
-        if (!/^\d{6}$/.test(password)) {
-            return Response.json({ code: 401, message: '交易密码必须是6位数字' })
-        }
-
-        // 获取用户交易密码
-        const { data: user, error } = await supabase
-            .from('users')
-            .select('transaction_password')
-            .eq('id', userId)
-            .single()
-
-        // 查询失败（DB 异常）
-        if (error) {
-            console.error('[Verify Password] DB Error:', error)
-            return Response.json({ code: 500, message: '验证服务异常，请稍后重试' })
-        }
-
-        // 用户不存在
-        if (!user) {
-            return Response.json({ code: 404, message: '用户不存在' })
-        }
-
-        // 未设置交易密码：要求先设置，不允许绕过
-        if (!user.transaction_password) {
-            return Response.json({ code: 428, message: '请先设置交易密码后再操作' })
-        }
-
-        // SHA-256 哈希比较（兼容明文旧密码迁移）
-        const hashedInput = await hashPassword(password)
-        if (user.transaction_password === hashedInput || user.transaction_password === password) {
-            return Response.json({ code: 200, message: '验证通过' })
-        }
-
-        return Response.json({ code: 401, message: '交易密码错误' })
-
-    } catch (error) {
-        console.error('[Verify Password] Error:', error)
-        return Response.json({ code: 500, message: '验证服务异常，请稍后重试' })
-    }
-})
-
-/**
- * POST /api/auth/verify-switch
- * 验证切换账号PIN码
- * PIN默认=userId后4位，可由管理员通过KV自定义
- */
-router.post('/verify-switch', async (request) => {
-    const env = request.env
-    try {
-        const { userId, pin } = await request.json()
-        if (!userId || !pin) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-
-        // 从KV读取自定义PIN（管理员可设置）
-        let expectedPin = null
-        if (env.CACHE) {
-            expectedPin = await env.CACHE.get(`switch_pin:${userId}`)
-        }
-        // 默认PIN = userId后4位
-        if (!expectedPin) {
-            expectedPin = String(userId).slice(-4)
-        }
-
-        if (String(pin).trim() !== expectedPin) {
-            return Response.json({ code: 403, message: '验证码错误，请输入正确的切换码' })
-        }
-
-        return Response.json({ code: 200, message: '验证通过' })
-    } catch (error) {
-        console.error('[VerifySwitch] Error:', error)
-        return Response.json({ code: 500, message: '验证失败' }, { status: 500 })
-    }
-})
-
-/**
- * POST /api/auth/set-switch-pin
- * 管理员设置指定用户的切换PIN
- */
-router.post('/set-switch-pin', async (request) => {
-    const env = request.env
-    try {
-        const { adminId, userId, pin } = await request.json()
-        if (String(adminId) !== '82377') {
-            return Response.json({ code: 403, message: '无管理员权限' })
-        }
-        if (!userId || !pin || String(pin).length < 4) {
-            return Response.json({ code: 400, message: 'PIN至少4位' })
-        }
-        if (env.CACHE) {
-            await env.CACHE.put(`switch_pin:${userId}`, String(pin))
-        }
-        return Response.json({ code: 200, message: `用户${userId}的切换PIN已设置为${pin}` })
-    } catch (error) {
-        console.error('[SetSwitchPin] Error:', error)
-        return Response.json({ code: 500, message: '设置失败' }, { status: 500 })
-    }
-})
-
-/**
- * 安全问题列表
- */
-const SECURITY_QUESTIONS = [
-    '身份证后6位数是什么？',
-    '爸爸的名字叫什么？'
-]
-
-/**
- * POST /api/auth/save-security
- * 保存安全问题答案
- * Body: { userId, q1Answer, q2Answer }
- */
-router.post('/save-security', async (request) => {
-    const env = request.env
-    try {
-        const { userId, q1Answer } = await request.json()
-        if (!userId || !q1Answer?.trim()) {
-            return Response.json({ code: 400, message: '请填写安全问题答案' })
-        }
-        if (!env.CACHE) {
-            return Response.json({ code: 500, message: '存储不可用' })
-        }
-        // 🔒 安全锁：已设置过的不允许覆盖，防止他人恶意重置
-        const existing = await env.CACHE.get(`security:${userId}`)
-        if (existing) {
-            return Response.json({ code: 409, message: '安全问题已设置，如需修改请联系客服' })
-        }
-        await env.CACHE.put(`security:${userId}`, JSON.stringify({
-            q1: q1Answer.trim().toLowerCase()
-        }))
-        return Response.json({ code: 200, message: '安全问题设置成功' })
-    } catch (error) {
-        console.error('[SaveSecurity] Error:', error)
-        return Response.json({ code: 500, message: '设置失败' }, { status: 500 })
-    }
-})
-
-/**
- * POST /api/auth/admin-reset-security
- * 管理员重置指定用户的安全问题（需要 adminCode 验证）
- * Body: { adminCode, targetUserId }
- */
-router.post('/admin-reset-security', async (request) => {
-    const env = request.env
-    try {
-        const { adminCode, targetUserId } = await request.json()
-        if (!adminCode || !targetUserId) {
-            return Response.json({ code: 400, message: '缺少参数' })
-        }
-        // 验证管理员码
-        const envCode = (env?.ADMIN_CODE || '').trim()
-        let storedCode = envCode
-        if (!storedCode && request.supabase) {
-            const { data } = await request.supabase
-                .from('admin_settings')
-                .select('setting_value')
-                .eq('setting_key', 'admin_login_code')
-                .single()
-            storedCode = data?.setting_value?.trim() || ''
-        }
-        if (!storedCode || adminCode.trim() !== storedCode) {
-            return Response.json({ code: 403, message: '管理员码错误' })
-        }
-        // 删除安全问题
-        if (!env.CACHE) return Response.json({ code: 500, message: 'CACHE不可用' })
-        const existing = await env.CACHE.get(`security:${targetUserId}`)
-        if (!existing) {
-            return Response.json({ code: 404, message: '该用户未设置安全问题' })
-        }
-        await env.CACHE.delete(`security:${targetUserId}`)
-        return Response.json({ code: 200, message: `用户 ${targetUserId} 安全问题已重置，可重新设置` })
-    } catch (e) {
-        console.error('[ResetSecurity] Error:', e)
-        return Response.json({ code: 500, message: '重置失败' })
-    }
-})
-
-/**
- * GET /api/auth/security-status?userId=xxx
- * 查询当前用户是否已设置安全问题（不返回答案）
- */
-router.get('/security-status', async (request) => {
-    const env = request.env
-    try {
-        const url = new URL(request.url)
-        const userId = url.searchParams.get('userId')
-        if (!userId) return Response.json({ code: 400, message: '缺少userId' })
-        const existing = await env.CACHE.get(`security:${userId}`)
-        return Response.json({ code: 200, data: { isSet: !!existing } })
-    } catch (e) {
-        return Response.json({ code: 500, message: '查询失败' })
-    }
-})
-
-/**
- * POST /api/auth/get-security-question
- * 获取指定用户的随机安全问题（不返回答案）
- * Body: { userId }
- */
-router.post('/get-security-question', async (request) => {
-    const env = request.env
-    try {
-        const { userId } = await request.json()
-        if (!userId) {
-            return Response.json({ code: 400, message: '缺少用户ID' })
-        }
-        if (!env.CACHE) {
-            return Response.json({ code: 500, message: '存储不可用' })
-        }
-        const data = await env.CACHE.get(`security:${userId}`, { type: 'json' })
-        if (!data) {
-            return Response.json({ code: 404, message: '该账户尚未设置安全问题，请先设置' })
-        }
-        // 固定使用第1题（身份证后6位），避免随机题目导致前端显示与实际验证不一致
-        const questionIndex = 1
-        return Response.json({
-            code: 200,
-            data: {
-                questionIndex,
-                question: SECURITY_QUESTIONS[questionIndex - 1]
-            }
-        })
-    } catch (error) {
-        console.error('[GetSecurityQuestion] Error:', error)
-        return Response.json({ code: 500, message: '获取失败' }, { status: 500 })
-    }
-})
-
-/**
- * POST /api/auth/verify-security
- * 验证安全问题答案
- * Body: { userId, questionIndex, answer }
- */
-router.post('/verify-security', async (request) => {
-    const env = request.env
-    try {
-        const { userId, questionIndex, answer } = await request.json()
-        if (!userId || !questionIndex || !answer?.trim()) {
-            return Response.json({ code: 400, message: '参数不完整' })
-        }
-        if (!env.CACHE) {
-            return Response.json({ code: 500, message: '存储不可用' })
-        }
-        const data = await env.CACHE.get(`security:${userId}`, { type: 'json' })
-        if (!data) {
-            return Response.json({ code: 404, message: '该账户尚未设置安全问题' })
-        }
-        const expected = data.q1  // 始终用q1，兼容旧版双题数据
-        if (answer.trim().toLowerCase() !== expected) {
-            return Response.json({ code: 403, message: '答案错误，请重新输入' })
-        }
-        const transferToken = crypto.randomUUID()
-        await env.CACHE.put(
-            `transfer_token:${userId}`,
-            JSON.stringify({ token: transferToken, createdAt: Date.now() }),
-            { expirationTtl: 60 }
-        )
-        return Response.json({ code: 200, message: '验证通过', transferToken })
-    } catch (error) {
-        console.error('[VerifySecurity] Error:', error)
-        return Response.json({ code: 500, message: '验证失败' }, { status: 500 })
-    }
-})
-
-export const authRoutes = router
-
+function sanitizeUser(u) {
+  const { security_answer, ...safe } = u
+  safe.has_security_answer = !!security_answer
+  return safe
+}

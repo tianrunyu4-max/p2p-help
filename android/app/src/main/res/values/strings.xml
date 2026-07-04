@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">1+1互助</string>
-    <string name="title_activity_main">1+1互助</string>
-    <string name="package_name">uk.airairdrop.p2p</string>
-    <string name="custom_url_scheme">uk.airairdrop.p2p</string>
-</resources>
